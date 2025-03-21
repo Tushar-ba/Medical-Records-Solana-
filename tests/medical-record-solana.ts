@@ -3,7 +3,6 @@ import { Program } from "@coral-xyz/anchor";
 import { MedicalRecordSolana } from "../target/types/medical_record_solana";
 import { PublicKey, Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { expect } from "chai";
-import BN from "bn.js";
 import * as crypto from "crypto";
 
 const ENCRYPTION_KEY = crypto.randomBytes(32); // 256-bit key
@@ -43,6 +42,11 @@ describe("medical-record-solana", () => {
     program.programId
   );
 
+  const [historyPDA] = anchor.web3.PublicKey.findProgramAddressSync(
+    [Buffer.from("history"), wallet.publicKey.toBuffer()],
+    program.programId
+  );
+
   it("Initializes the admin account", async () => {
     const tx = await program.methods
       .initialize()
@@ -55,6 +59,90 @@ describe("medical-record-solana", () => {
     console.log("Init tx:", tx);
     const adminAccount = await program.account.admin.fetch(adminPDA);
     expect(adminAccount.authority.toString()).to.equal(wallet.publicKey.toString());
+    expect(adminAccount.readAuthorities).to.deep.include(wallet.publicKey);
+    expect(adminAccount.writeAuthorities).to.deep.include(wallet.publicKey);
+  });
+
+  it("Adds a read authority and logs history", async () => {
+    const newAuthority = Keypair.generate();
+    const tx = await program.methods
+      .addReadAuthority(newAuthority.publicKey)
+      .accounts({
+        authority: wallet.publicKey,
+        adminAccount: adminPDA,
+        history: historyPDA,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .rpc();
+    console.log("Add read authority tx:", tx);
+
+    const adminAccount = await program.account.admin.fetch(adminPDA);
+    expect(adminAccount.readAuthorities).to.deep.include(newAuthority.publicKey);
+
+    const historyAccount = await program.account.authorityHistory.fetch(historyPDA);
+    expect(historyAccount.entries.length).to.equal(1);
+    expect(historyAccount.entries[0].admin.toString()).to.equal(wallet.publicKey.toString());
+    expect(historyAccount.entries[0].authority.toString()).to.equal(newAuthority.publicKey.toString());
+    expect(historyAccount.entries[0].added).to.be.true;
+    expect(historyAccount.entries[0].isRead).to.be.true;
+  });
+
+  it("Adds a write authority and logs history", async () => {
+    const newAuthority = Keypair.generate();
+    const tx = await program.methods
+      .addWriteAuthority(newAuthority.publicKey)
+      .accounts({
+        authority: wallet.publicKey,
+        adminAccount: adminPDA,
+        history: historyPDA,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .rpc();
+    console.log("Add write authority tx:", tx);
+
+    const adminAccount = await program.account.admin.fetch(adminPDA);
+    expect(adminAccount.writeAuthorities).to.deep.include(newAuthority.publicKey);
+
+    const historyAccount = await program.account.authorityHistory.fetch(historyPDA);
+    expect(historyAccount.entries.length).to.equal(2);
+    expect(historyAccount.entries[1].admin.toString()).to.equal(wallet.publicKey.toString());
+    expect(historyAccount.entries[1].authority.toString()).to.equal(newAuthority.publicKey.toString());
+    expect(historyAccount.entries[1].added).to.be.true;
+    expect(historyAccount.entries[1].isRead).to.be.false;
+  });
+
+  it("Fails to add authority as non-admin", async () => {
+    const nonAdminWallet = Keypair.generate();
+    const newAuthority = Keypair.generate();
+    const connection = provider.connection;
+
+    const airdropSignature = await connection.requestAirdrop(
+      nonAdminWallet.publicKey,
+      LAMPORTS_PER_SOL
+    );
+    await connection.confirmTransaction(airdropSignature);
+
+    const [nonAdminHistoryPDA] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("history"), nonAdminWallet.publicKey.toBuffer()],
+      program.programId
+    );
+
+    try {
+      await program.methods
+        .addReadAuthority(newAuthority.publicKey)
+        .accounts({
+          authority: nonAdminWallet.publicKey,
+          adminAccount: adminPDA,
+          history: nonAdminHistoryPDA,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .signers([nonAdminWallet])
+        .rpc();
+      expect.fail("Should have thrown an Unauthorized error");
+    } catch (error: any) {
+      console.log("Error details:", error);
+      expect(error.toString()).to.include("Unauthorized access");
+    }
   });
 
   it("Creates a patient record with encrypted data", async () => {
@@ -154,5 +242,41 @@ describe("medical-record-solana", () => {
       const errorString = error.toString();
       expect(errorString).to.include("Unauthorized access");
     }
+  });
+
+  it("Removes a write authority and logs history", async () => {
+    const newAuthority = Keypair.generate();
+    await program.methods
+      .addWriteAuthority(newAuthority.publicKey)
+      .accounts({
+        authority: wallet.publicKey,
+        adminAccount: adminPDA,
+        history: historyPDA,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .rpc();
+
+    const tx = await program.methods
+      .removeWriteAuthority(newAuthority.publicKey)
+      .accounts({
+        authority: wallet.publicKey,
+        adminAccount: adminPDA,
+        history: historyPDA,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .rpc();
+    console.log("Remove write authority tx:", tx);
+
+    const adminAccount = await program.account.admin.fetch(adminPDA);
+    expect(adminAccount.writeAuthorities).to.not.deep.include(newAuthority.publicKey);
+
+    const historyAccount = await program.account.authorityHistory.fetch(historyPDA);
+    const removeEntry = historyAccount.entries.find(
+      (entry: any) => entry.authority.toString() === newAuthority.publicKey.toString() && !entry.added
+    );
+    expect(removeEntry).to.exist;
+    expect(removeEntry.admin.toString()).to.equal(wallet.publicKey.toString());
+    expect(removeEntry.added).to.be.false;
+    expect(removeEntry.isRead).to.be.false;
   });
 });
