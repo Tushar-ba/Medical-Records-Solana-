@@ -1,2 +1,11 @@
-# Medical-Records-Solana-
-# Medical-Records-Solana-
+  medical-record-solana
+    ✔ Initializes the admin account (1656ms)
+    ✔ Adds a read authority and logs history (1089ms)
+    ✔ Adds a write authority and logs history (1083ms)
+    ✔ Fails to add authority as non-admin (1029ms)
+    ✔ Creates a patient record with encrypted data (970ms)
+    ✔ Updates a patient record with encrypted data (998ms)
+    ✔ Gets patient data (authorized) (998ms)
+    ✔ Fails to get patient data (unauthorized) (1141ms)
+    ✔ Removes a write authority and logs history (2124ms)
+  9 passing (11s)
