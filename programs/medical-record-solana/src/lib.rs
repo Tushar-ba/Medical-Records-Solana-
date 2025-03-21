@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::hash::hash;
 
 declare_id!("Bgsncv4N8H6oWjYHa9KaxCKaWcwKxCMa9FHDHsGkAUzW");
 
@@ -8,10 +9,8 @@ pub mod medical_record_solana {
 
     pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
         msg!("Initializing");
-    
         let admin_account = &mut ctx.accounts.admin_account;
         if admin_account.authority == Pubkey::default() {
-            // Only set authority if it hasn't been initialized
             admin_account.authority = ctx.accounts.authority.key();
         } else if admin_account.authority != ctx.accounts.authority.key() {
             return Err(ErrorCode::Unauthorized.into());
@@ -20,54 +19,45 @@ pub mod medical_record_solana {
     }
 
     pub fn create_patient(
-        ctx: Context<CreatePatient>, 
-        name: String, 
-        blood_type: String, 
-        previous_report: String, 
-        ph_no: u64, 
-        file: String
+        ctx: Context<CreatePatient>,
+        encrypted_data: String,
     ) -> Result<()> {
-        // Check if the caller is the authorized admin
         if ctx.accounts.admin_account.authority != ctx.accounts.authority.key() {
             return Err(ErrorCode::Unauthorized.into());
         }
 
-        // Get the patient account's key first
-        let patient_pubkey = ctx.accounts.patient.key();
-        
-        // Then update fields
         let patient = &mut ctx.accounts.patient;
-        patient.patient_address = patient_pubkey;
+        patient.patient_address = patient.key();
         patient.is_initialized = true;
-        patient.name = name;
-        patient.blood_type = blood_type;
-        patient.previous_report = previous_report;
-        patient.ph_no = ph_no;
-        patient.file = file;
-        
+        patient.encrypted_data = encrypted_data.clone();
+        patient.data_hash = hash(encrypted_data.as_bytes()).to_bytes();
         Ok(())
     }
 
     pub fn update_patient(
-        ctx: Context<UpdatePatient>, 
-        name: String, 
-        blood_type: String, 
-        previous_report: String, 
-        ph_no: u64, 
-        file: String
+        ctx: Context<UpdatePatient>,
+        encrypted_data: String,
     ) -> Result<()> {
-        // Check if the caller is the authorized admin
         if ctx.accounts.admin_account.authority != ctx.accounts.authority.key() {
             return Err(ErrorCode::Unauthorized.into());
         }
 
         let patient = &mut ctx.accounts.patient;
-        patient.name = name;
-        patient.blood_type = blood_type;
-        patient.previous_report = previous_report;
-        patient.ph_no = ph_no;
-        patient.file = file;
-        
+        patient.encrypted_data = encrypted_data.clone();
+        patient.data_hash = hash(encrypted_data.as_bytes()).to_bytes();
+        Ok(())
+    }
+
+    pub fn get_patient(ctx: Context<GetPatient>) -> Result<()> {
+        if ctx.accounts.admin_account.authority != ctx.accounts.authority.key() {
+            return Err(ErrorCode::Unauthorized.into());
+        }
+        let patient = &ctx.accounts.patient;
+        let computed_hash = hash(patient.encrypted_data.as_bytes()).to_bytes();
+        if computed_hash != patient.data_hash {
+            return Err(ErrorCode::DataIntegrityFailed.into());
+        }
+        msg!("Encrypted patient data: {}", patient.encrypted_data);
         Ok(())
     }
 }
@@ -97,20 +87,16 @@ pub struct CreatePatient<'info> {
         bump
     )]
     pub patient: Account<'info, Patient>,
-    
-    /// CHECK: This is used as a seed for the patient PDA and does not require additional validation
+    /// CHECK: Used as a seed for the patient PDA
     pub patient_seed: AccountInfo<'info>,
-
     #[account(mut)]
     pub authority: Signer<'info>,
-    
     #[account(
         seeds = [b"admin"],
         bump,
         constraint = admin_account.authority == authority.key() @ ErrorCode::Unauthorized
     )]
     pub admin_account: Account<'info, Admin>,
-    
     pub system_program: Program<'info, System>,
 }
 
@@ -123,21 +109,36 @@ pub struct UpdatePatient<'info> {
         constraint = patient.is_initialized @ ErrorCode::PatientDoesNotExist
     )]
     pub patient: Account<'info, Patient>,
-    
-    /// CHECK: This is used as a seed for the patient PDA and does not require additional validation
+    /// CHECK: Used as a seed for the patient PDA
     pub patient_seed: AccountInfo<'info>,
-
     #[account(mut)]
     pub authority: Signer<'info>,
-    
     #[account(
         seeds = [b"admin"],
         bump,
         constraint = admin_account.authority == authority.key() @ ErrorCode::Unauthorized
     )]
     pub admin_account: Account<'info, Admin>,
-    
     pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct GetPatient<'info> {
+    #[account(
+        seeds = [b"patient", admin_account.authority.as_ref(), patient_seed.key().as_ref()], // Use admin's key
+        bump,
+        constraint = patient.is_initialized @ ErrorCode::PatientDoesNotExist
+    )]
+    pub patient: Account<'info, Patient>,
+    /// CHECK: Used as a seed for the patient PDA
+    pub patient_seed: AccountInfo<'info>,
+    pub authority: Signer<'info>,
+    #[account(
+        seeds = [b"admin"],
+        bump,
+        constraint = admin_account.authority == authority.key() @ ErrorCode::Unauthorized
+    )]
+    pub admin_account: Account<'info, Admin>,
 }
 
 #[account]
@@ -150,15 +151,9 @@ pub struct Admin {
 pub struct Patient {
     pub patient_address: Pubkey,
     pub is_initialized: bool,
-    #[max_len(50)]
-    pub name: String,
-    #[max_len(50)]
-    pub blood_type: String,
-    #[max_len(300)]
-    pub previous_report: String,
-    pub ph_no: u64,
-    #[max_len(50)]
-    pub file: String, 
+    #[max_len(500)]
+    pub encrypted_data: String,
+    pub data_hash: [u8; 32],
 }
 
 #[error_code]
@@ -169,4 +164,6 @@ pub enum ErrorCode {
     PatientAlreadyExists,
     #[msg("Patient record does not exist")]
     PatientDoesNotExist,
+    #[msg("Data integrity check failed")]
+    DataIntegrityFailed,
 }
