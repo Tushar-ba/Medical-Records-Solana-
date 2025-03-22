@@ -1,0 +1,40 @@
+console.log("window.solana:", window.solana);
+console.log("isPhantom:", window.solana?.isPhantom);
+
+
+async function signMessage() {
+    try {
+        if (!window.solana || !window.solana.isConnected) {
+            console.log("Connecting wallet...");
+            await window.solana.connect();
+        }
+
+        const message = "Please sign this message to authenticate";
+        const encodedMessage = new TextEncoder().encode(message);
+        const publicKey = window.solana.publicKey.toString();
+        const signedMessage = await window.solana.signMessage(encodedMessage);
+        const signature = signedMessage.signature;
+        const bs58 = await import('https://cdn.jsdelivr.net/npm/bs58@4.0.1/+esm');
+        const signatureBase58 = bs58.default.encode(signature);
+
+        console.log("Public Key:", publicKey);
+        console.log("Signature (base58):", signatureBase58);
+        console.log("Message:", message);
+
+        return {
+            public_key: publicKey,
+            signature: signatureBase58,
+            message: message
+        };
+    } catch (error) {
+        console.error("Error signing message:", error);
+        return null;
+    }
+}
+
+signMessage().then(result => {
+    if (result) {
+        console.log("Ready to send to API:", result);
+        console.log("JSON for Postman:", JSON.stringify(result));
+    }
+});
