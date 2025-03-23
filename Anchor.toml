@@ -6,13 +6,13 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-medical_record_solana = "Bgsncv4N8H6oWjYHa9KaxCKaWcwKxCMa9FHDHsGkAUzW"
+medical_record_solana = "EoajdANNqiHD4JWwcwbTphxTgcJtR28mvwrNfK3TtyVf"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]

@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::hash::hash;
 
-declare_id!("Bgsncv4N8H6oWjYHa9KaxCKaWcwKxCMa9FHDHsGkAUzW");
+declare_id!("EoajdANNqiHD4JWwcwbTphxTgcJtR28mvwrNfK3TtyVf");
 
 #[program]
 pub mod medical_record_solana {

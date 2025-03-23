@@ -1,7 +1,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { MedicalRecordSolana } from "../target/types/medical_record_solana";
-import { PublicKey, Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { PublicKey, Keypair } from "@solana/web3.js";
 import { expect } from "chai";
 import * as crypto from "crypto";
 
@@ -114,13 +114,6 @@ describe("medical-record-solana", () => {
   it("Fails to add authority as non-admin", async () => {
     const nonAdminWallet = Keypair.generate();
     const newAuthority = Keypair.generate();
-    const connection = provider.connection;
-
-    const airdropSignature = await connection.requestAirdrop(
-      nonAdminWallet.publicKey,
-      LAMPORTS_PER_SOL
-    );
-    await connection.confirmTransaction(airdropSignature);
 
     const [nonAdminHistoryPDA] = anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from("history"), nonAdminWallet.publicKey.toBuffer()],
@@ -136,7 +129,7 @@ describe("medical-record-solana", () => {
           history: nonAdminHistoryPDA,
           systemProgram: anchor.web3.SystemProgram.programId,
         })
-        .signers([nonAdminWallet])
+        .signers([nonAdminWallet]) // nonAdminWallet signs, but wallet pays
         .rpc();
       expect.fail("Should have thrown an Unauthorized error");
     } catch (error: any) {
@@ -217,13 +210,6 @@ describe("medical-record-solana", () => {
 
   it("Fails to get patient data (unauthorized)", async () => {
     const unauthorizedWallet = Keypair.generate();
-    const connection = provider.connection;
-
-    const airdropSignature = await connection.requestAirdrop(
-      unauthorizedWallet.publicKey,
-      LAMPORTS_PER_SOL
-    );
-    await connection.confirmTransaction(airdropSignature);
 
     try {
       await program.methods
@@ -234,13 +220,12 @@ describe("medical-record-solana", () => {
           authority: unauthorizedWallet.publicKey,
           adminAccount: adminPDA,
         })
-        .signers([unauthorizedWallet])
+        .signers([unauthorizedWallet]) // unauthorizedWallet signs, but wallet pays
         .rpc();
       expect.fail("Should have thrown an Unauthorized error");
     } catch (error: any) {
       console.log("Error details:", error);
-      const errorString = error.toString();
-      expect(errorString).to.include("Unauthorized access");
+      expect(error.toString()).to.include("Unauthorized access");
     }
   });
 
