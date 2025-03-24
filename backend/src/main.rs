@@ -50,6 +50,7 @@ async fn main() -> std::io::Result<()> {
                         web::scope("/transactions")
                             .wrap(middleware::jwt::jwt_middleware())
                             .route("/prepare/add-read-authority", web::post().to(controllers::prepare_add_read_authority))
+                            .route("/prepare/remove-read-authority", web::post().to(controllers::prepare_remove_read_authority))
                             .route("/submit", web::post().to(controllers::submit_transaction)),
                     ),
             )

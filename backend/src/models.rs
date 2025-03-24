@@ -21,6 +21,12 @@ pub struct AddReadAuthorityRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct RemoveReadAuthorityRequest {
+    pub user_pubkey: String,
+    pub authority_to_remove: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PreparedTransaction {
     pub serialized_transaction: String,
     pub transaction_type: String,
@@ -29,7 +35,7 @@ pub struct PreparedTransaction {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SubmitTransactionRequest {
-    pub serialized_transaction: String, // Removed the `signature` field
+    pub serialized_transaction: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

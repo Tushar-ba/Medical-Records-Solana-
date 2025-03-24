@@ -14,7 +14,7 @@ use base64::Engine;
 use bincode;
 
 use crate::error::AppError;
-use crate::models::{AddReadAuthorityRequest, PreparedTransaction};
+use crate::models::{AddReadAuthorityRequest, RemoveReadAuthorityRequest, PreparedTransaction};
 use crate::utils;
 
 pub struct TransactionService {
@@ -104,6 +104,75 @@ impl TransactionService {
             metadata,
         })
     }
+
+    pub async fn prepare_remove_read_authority(&self, req: &RemoveReadAuthorityRequest) -> Result<PreparedTransaction, AppError> {
+        log::info!("Preparing remove_read_authority transaction for authority: {}", req.authority_to_remove);
+    
+        let user_pubkey = Pubkey::from_str(&req.user_pubkey)
+            .map_err(|e| {
+                log::error!("Invalid user public key: {}", e);
+                AppError::BadRequest(format!("Invalid user public key: {}", e))
+            })?;
+    
+        let authority_to_remove = Pubkey::from_str(&req.authority_to_remove)
+            .map_err(|e| {
+                log::error!("Invalid authority to remove public key: {}", e);
+                AppError::BadRequest(format!("Invalid authority to remove public key: {}", e))
+            })?;
+    
+        log::info!("Deriving admin PDA...");
+        let (admin_pda, _bump) = Pubkey::find_program_address(&[b"admin"], &self.program_id);
+        log::info!("Admin PDA: {}", admin_pda);
+    
+        log::info!("Deriving history PDA...");
+        let (history_pda, _bump) = Pubkey::find_program_address(
+            &[b"history", self.admin_pubkey.as_ref()],
+            &self.program_id,
+        );
+        log::info!("History PDA: {}", history_pda);
+    
+        // Correct discriminator from IDL for remove_read_authority
+        let mut instruction_data = vec![184, 21, 123, 83, 88, 34, 159, 122]; // [b8, 15, 7b, 53, 58, 22, 9f, 7a]
+        instruction_data.extend_from_slice(authority_to_remove.as_ref());
+        log::info!("Instruction data prepared: {:?}", instruction_data);
+    
+        let instruction = Instruction {
+            program_id: self.program_id,
+            accounts: vec![
+                solana_sdk::instruction::AccountMeta::new(self.admin_pubkey, true),
+                solana_sdk::instruction::AccountMeta::new(admin_pda, false),
+                solana_sdk::instruction::AccountMeta::new(history_pda, false),
+                solana_sdk::instruction::AccountMeta::new_readonly(system_program::id(), false),
+            ],
+            data: instruction_data,
+        };
+        log::info!("Instruction created: {:?}", instruction);
+    
+        log::info!("Fetching latest blockhash...");
+        let recent_blockhash = self.get_latest_blockhash_with_retry(5, std::time::Duration::from_secs(5)).await?;
+        log::info!("Latest blockhash: {:?}", recent_blockhash);
+    
+        let mut transaction = Transaction::new_with_payer(&[instruction], Some(&user_pubkey));
+        transaction.message.recent_blockhash = recent_blockhash;
+        log::info!("Transaction created: {:?}", transaction);
+    
+        transaction.partial_sign(&[&self.admin_keypair], recent_blockhash);
+        log::info!("Transaction partially signed by admin");
+    
+        let serialized_transaction = utils::serialize_transaction(&transaction)?;
+        log::info!("Transaction serialized: {}", serialized_transaction);
+    
+        let metadata = serde_json::to_string(req)?;
+        log::info!("Metadata: {}", metadata);
+    
+        Ok(PreparedTransaction {
+            serialized_transaction,
+            transaction_type: "remove_read_authority".to_string(),
+            metadata,
+        })
+    }
+
+    
 
     pub async fn submit_transaction(&self, serialized_transaction: &str) -> Result<String, AppError> {
         log::info!("Submitting transaction: {}", serialized_transaction);

@@ -6,7 +6,7 @@ use bs58;
 use crate::app_state::AppState;
 use crate::error::AppError;
 use crate::middleware::jwt::generate_jwt;
-use crate::models::{AuthRequest, AuthResponse, AddReadAuthorityRequest, SubmitTransactionRequest, SubmitTransactionResponse};
+use crate::models::{AuthRequest, AuthResponse, AddReadAuthorityRequest, RemoveReadAuthorityRequest, SubmitTransactionRequest, SubmitTransactionResponse};
 
 pub async fn authenticate(
     req: web::Json<AuthRequest>,
@@ -65,6 +65,26 @@ pub async fn prepare_add_read_authority(
     };
 
     let prepared_tx = data.solana_service.prepare_add_read_authority(&modified_req).await?;
+    Ok(HttpResponse::Ok().json(prepared_tx))
+}
+
+pub async fn prepare_remove_read_authority(
+    req: web::Json<RemoveReadAuthorityRequest>,
+    data: web::Data<AppState>,
+    req_data: web::ReqData<String>,
+) -> Result<HttpResponse, AppError> {
+    info!("Received prepare_remove_read_authority request for authority: {}", req.authority_to_remove);
+
+    // Extract the user's public key from the JWT token
+    let user_pubkey = req_data.into_inner();
+
+    // Create a modified request with the user_pubkey
+    let modified_req = RemoveReadAuthorityRequest {
+        user_pubkey: user_pubkey.clone(),
+        authority_to_remove: req.authority_to_remove.clone(),
+    };
+
+    let prepared_tx = data.solana_service.prepare_remove_read_authority(&modified_req).await?;
     Ok(HttpResponse::Ok().json(prepared_tx))
 }
 
