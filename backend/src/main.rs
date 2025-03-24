@@ -51,7 +51,8 @@ async fn main() -> std::io::Result<()> {
                             .wrap(middleware::jwt::jwt_middleware())
                             .route("/prepare/add-read-authority", web::post().to(controllers::prepare_add_read_authority))
                             .route("/prepare/remove-read-authority", web::post().to(controllers::prepare_remove_read_authority))
-                            .route("/submit", web::post().to(controllers::submit_transaction)),
+                            .route("/submit", web::post().to(controllers::submit_transaction))
+                            .route("/authorities", web::get().to(controllers::get_authorities)),
                     ),
             )
             .wrap(actix_web::middleware::Logger::default())

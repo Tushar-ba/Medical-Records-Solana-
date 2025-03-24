@@ -6,7 +6,7 @@ use bs58;
 use crate::app_state::AppState;
 use crate::error::AppError;
 use crate::middleware::jwt::generate_jwt;
-use crate::models::{AuthRequest, AuthResponse, AddReadAuthorityRequest, RemoveReadAuthorityRequest, SubmitTransactionRequest, SubmitTransactionResponse};
+use crate::models::{AuthRequest, AuthResponse, AddReadAuthorityRequest, RemoveReadAuthorityRequest, SubmitTransactionRequest, SubmitTransactionResponse, AuthoritiesResponse};
 
 pub async fn authenticate(
     req: web::Json<AuthRequest>,
@@ -14,7 +14,6 @@ pub async fn authenticate(
 ) -> Result<HttpResponse, AppError> {
     info!("Received authentication request for public key: {}", req.public_key);
 
-    // Decode the signature and public key
     let signature_bytes = bs58::decode(&req.signature)
         .into_vec()
         .map_err(|e| AppError::BadRequest(format!("Failed to decode signature: {}", e)))?;
@@ -23,7 +22,6 @@ pub async fn authenticate(
         .into_vec()
         .map_err(|e| AppError::BadRequest(format!("Failed to decode public key: {}", e)))?;
 
-    // Verify the signature
     let signature = Signature::try_from(signature_bytes.as_slice())
         .map_err(|e| AppError::BadRequest(format!("Invalid signature bytes: {}", e)))?;
 
@@ -36,7 +34,6 @@ pub async fn authenticate(
         return Err(AppError::Unauthorized("Signature verification failed".to_string()));
     }
 
-    // Generate JWT using the middleware function
     let token = generate_jwt(&req.public_key, &data.jwt_config.secret, data.jwt_config.expires_in)?;
     let response = AuthResponse {
         token,
@@ -55,10 +52,7 @@ pub async fn prepare_add_read_authority(
 ) -> Result<HttpResponse, AppError> {
     info!("Received prepare_add_read_authority request for new authority: {}", req.new_authority);
 
-    // Extract the user's public key from the JWT token
     let user_pubkey = req_data.into_inner();
-
-    // Create a modified request with the user_pubkey
     let modified_req = AddReadAuthorityRequest {
         user_pubkey: user_pubkey.clone(),
         new_authority: req.new_authority.clone(),
@@ -75,10 +69,7 @@ pub async fn prepare_remove_read_authority(
 ) -> Result<HttpResponse, AppError> {
     info!("Received prepare_remove_read_authority request for authority: {}", req.authority_to_remove);
 
-    // Extract the user's public key from the JWT token
     let user_pubkey = req_data.into_inner();
-
-    // Create a modified request with the user_pubkey
     let modified_req = RemoveReadAuthorityRequest {
         user_pubkey: user_pubkey.clone(),
         authority_to_remove: req.authority_to_remove.clone(),
@@ -96,4 +87,12 @@ pub async fn submit_transaction(
     let signature = data.solana_service.submit_transaction(&req.serialized_transaction).await?;
     let response = SubmitTransactionResponse { signature };
     Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn get_authorities(
+    data: web::Data<AppState>,
+) -> Result<HttpResponse, AppError> {
+    info!("Received get_authorities request");
+    let authorities = data.solana_service.get_authorities().await?;
+    Ok(HttpResponse::Ok().json(authorities))
 }

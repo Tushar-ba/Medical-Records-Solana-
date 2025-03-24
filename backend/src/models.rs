@@ -48,3 +48,10 @@ pub struct JwtConfig {
     pub secret: String,
     pub expires_in: i64,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AuthoritiesResponse {
+    pub authority: String,
+    pub read_authorities: Vec<String>,
+    pub write_authorities: Vec<String>,
+}

@@ -1,7 +1,5 @@
 use actix_web::{web, HttpResponse, Responder};
 use actix_web_httpauth::middleware::HttpAuthentication;
-//use crate::controllers;
-
 use crate::{controllers, middleware::jwt};
 
 pub fn init_routes(cfg: &mut web::ServiceConfig) {
@@ -22,6 +20,11 @@ pub fn init_routes(cfg: &mut web::ServiceConfig) {
                 web::resource("/transactions/submit")
                     .wrap(jwt_middleware.clone())
                     .route(web::post().to(controllers::submit_transaction)),
+            )
+            .service(
+                web::resource("/transactions/authorities")
+                    .wrap(jwt_middleware.clone())
+                    .route(web::get().to(controllers::get_authorities)),
             )
             .service(
                 web::resource("/protected")
