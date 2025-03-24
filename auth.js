@@ -1,4 +1,4 @@
-const { Keypair } = require('@solana/web3.js');
+const { Keypair, PublicKey } = require('@solana/web3.js');
 const bs58 = require('bs58');
 
 const privateKeyBytes = Uint8Array.from([
@@ -11,6 +11,11 @@ const keypair = Keypair.fromSecretKey(privateKeyBytes);
 const timestamp = Math.floor(Date.now() / 1000);
 const message = `Timestamp: ${timestamp}`;
 const messageBytes = Buffer.from(message);
-const signature = keypair.sign(messageBytes);
+
+// Using the Ed25519 signature property of the keypair
+const signature = keypair.secretKey.slice(0, 32);
+const signedMessage = ed25519.sign(messageBytes, signature);
+
 console.log('Timestamp:', timestamp);
-console.log('Signature:', bs58.encode(signature));
+console.log('Signature:', bs58.encode(signedMessage));
+console.log('Public Key:', keypair.publicKey.toBase58());

@@ -42,7 +42,6 @@ impl TransactionService {
     pub async fn prepare_add_read_authority(&self, req: &AddReadAuthorityRequest) -> Result<PreparedTransaction, AppError> {
         log::info!("Preparing add_read_authority transaction for new authority: {}", req.new_authority);
 
-        // Parse the user's public key (from the request, extracted from JWT in the controller)
         let user_pubkey = Pubkey::from_str(&req.user_pubkey)
             .map_err(|e| {
                 log::error!("Invalid user public key: {}", e);
@@ -66,17 +65,17 @@ impl TransactionService {
         );
         log::info!("History PDA: {}", history_pda);
 
-        let mut instruction_data = vec![123, 45, 67, 89, 1, 2, 3, 4]; // Placeholder discriminator (matches Anchor's discriminator)
+        let mut instruction_data = vec![121, 238, 122, 44, 108, 135, 140, 74]; // Discriminator for add_read_authority
         instruction_data.extend_from_slice(new_authority.as_ref());
         log::info!("Instruction data prepared: {:?}", instruction_data);
 
         let instruction = Instruction {
             program_id: self.program_id,
             accounts: vec![
-                solana_sdk::instruction::AccountMeta::new(self.admin_pubkey, true),  // Account 0: Admin (signer)
-                solana_sdk::instruction::AccountMeta::new(admin_pda, false),         // Account 1: Admin PDA (not a signer)
-                solana_sdk::instruction::AccountMeta::new(history_pda, false),       // Account 2: History PDA (not a signer)
-                solana_sdk::instruction::AccountMeta::new_readonly(system_program::id(), false), // Account 3: System Program
+                solana_sdk::instruction::AccountMeta::new(self.admin_pubkey, true),
+                solana_sdk::instruction::AccountMeta::new(admin_pda, false),
+                solana_sdk::instruction::AccountMeta::new(history_pda, false),
+                solana_sdk::instruction::AccountMeta::new_readonly(system_program::id(), false),
             ],
             data: instruction_data,
         };
@@ -90,7 +89,6 @@ impl TransactionService {
         transaction.message.recent_blockhash = recent_blockhash;
         log::info!("Transaction created: {:?}", transaction);
 
-        // Partially sign the transaction with the admin keypair
         transaction.partial_sign(&[&self.admin_keypair], recent_blockhash);
         log::info!("Transaction partially signed by admin");
 
@@ -115,37 +113,99 @@ impl TransactionService {
             .decode(serialized_transaction)
             .map_err(|e| AppError::BadRequest(format!("Failed to decode transaction: {}", e)))?;
 
-        // Deserialize using bincode
         let mut transaction: Transaction = bincode::deserialize(&transaction_bytes)
             .map_err(|e| AppError::BadRequest(format!("Failed to deserialize transaction: {}", e)))?;
 
-        // Ensure the transaction has a valid recent blockhash
+        // Fetch a fresh blockhash
         let recent_blockhash = self.get_latest_blockhash_with_retry(5, std::time::Duration::from_secs(5)).await?;
         transaction.message.recent_blockhash = recent_blockhash;
+        log::info!("Updated blockhash: {}", recent_blockhash);
+
+        // Get the fee payer (first account in account_keys)
+        let user_pubkey = transaction.message.account_keys[0];
+        log::info!("Fee payer: {}", user_pubkey);
+
+        // Preserve the user's signature
+        let mut user_signature = None;
+        for (i, sig) in transaction.signatures.iter().enumerate() {
+            let pubkey = transaction.message.account_keys[i];
+            if pubkey == user_pubkey && sig != &solana_sdk::signature::Signature::default() {
+                user_signature = Some(*sig);
+                break;
+            }
+        }
+
+        // Clear signatures and re-sign with admin keypair
+        transaction.signatures = transaction
+            .message
+            .account_keys
+            .iter()
+            .map(|pubkey| {
+                if *pubkey == user_pubkey {
+                    solana_sdk::signature::Signature::default() // Placeholder for user signature
+                } else {
+                    solana_sdk::signature::Signature::default()
+                }
+            })
+            .collect();
+
+        transaction.partial_sign(&[&self.admin_keypair], recent_blockhash);
+        log::info!("Transaction re-signed by admin");
+
+        // Restore the user's signature
+        if let Some(sig) = user_signature {
+            for (i, signature) in transaction.signatures.iter_mut().enumerate() {
+                let pubkey = transaction.message.account_keys[i];
+                if pubkey == user_pubkey {
+                    *signature = sig;
+                    break;
+                }
+            }
+        } else {
+            return Err(AppError::BadRequest("User signature not found".to_string()));
+        }
 
         // Submit the transaction to the Solana network
-        let signature = self.client
+        let signature = self
+            .client
             .send_and_confirm_transaction(&transaction)
             .await
-            .map_err(|e| AppError::SolanaError(format!("Failed to submit transaction: {}", e)))?;
+            .map_err(|e| {
+                log::error!("Failed to submit transaction: {}", e);
+                AppError::SolanaError(format!("Failed to submit transaction: {}", e))
+            })?;
 
         log::info!("Transaction submitted with signature: {}", signature);
         Ok(signature.to_string())
     }
 
-    async fn get_latest_blockhash_with_retry(&self, retries: u32, delay: std::time::Duration) -> Result<solana_sdk::hash::Hash, AppError> {
+    async fn get_latest_blockhash_with_retry(
+        &self,
+        retries: u32,
+        delay: std::time::Duration,
+    ) -> Result<solana_sdk::hash::Hash, AppError> {
         for attempt in 1..=retries {
             match self.client.get_latest_blockhash().await {
                 Ok(blockhash) => return Ok(blockhash),
                 Err(e) => {
-                    log::error!("Attempt {}/{}: Failed to get latest blockhash: {}", attempt, retries, e);
+                    log::error!(
+                        "Attempt {}/{}: Failed to get latest blockhash: {}",
+                        attempt,
+                        retries,
+                        e
+                    );
                     if attempt == retries {
-                        return Err(AppError::SolanaError(format!("Failed to get latest blockhash after {} attempts: {}", retries, e)));
+                        return Err(AppError::SolanaError(format!(
+                            "Failed to get latest blockhash after {} attempts: {}",
+                            retries, e
+                        )));
                     }
                     sleep(Duration::from_millis(delay.as_millis() as u64)).await;
                 }
             }
         }
-        Err(AppError::SolanaError("Failed to get latest blockhash".to_string()))
+        Err(AppError::SolanaError(
+            "Failed to get latest blockhash".to_string(),
+        ))
     }
 }

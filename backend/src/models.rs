@@ -29,7 +29,7 @@ pub struct PreparedTransaction {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SubmitTransactionRequest {
-    pub serialized_transaction: String,  // Removed the `signature` field
+    pub serialized_transaction: String, // Removed the `signature` field
 }
 
 #[derive(Debug, Serialize, Deserialize)]
