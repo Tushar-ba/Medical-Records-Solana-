@@ -21,7 +21,19 @@ pub struct AddReadAuthorityRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct AddWriteAuthorityRequest {
+    pub user_pubkey: String,
+    pub new_authority: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RemoveReadAuthorityRequest {
+    pub user_pubkey: String,
+    pub authority_to_remove: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RemoveWriteAuthorityRequest {
     pub user_pubkey: String,
     pub authority_to_remove: String,
 }

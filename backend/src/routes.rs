@@ -17,6 +17,21 @@ pub fn init_routes(cfg: &mut web::ServiceConfig) {
                     .route(web::post().to(controllers::prepare_add_read_authority)),
             )
             .service(
+                web::resource("/transactions/prepare/add-write-authority")
+                    .wrap(jwt_middleware.clone())
+                    .route(web::post().to(controllers::prepare_add_write_authority)),
+            )
+            .service(
+                web::resource("/transactions/prepare/remove-read-authority")
+                    .wrap(jwt_middleware.clone())
+                    .route(web::post().to(controllers::prepare_remove_read_authority)),
+            )
+            .service(
+                web::resource("/transactions/prepare/remove-write-authority")
+                    .wrap(jwt_middleware.clone())
+                    .route(web::post().to(controllers::prepare_remove_write_authority)),
+            )
+            .service(
                 web::resource("/transactions/submit")
                     .wrap(jwt_middleware.clone())
                     .route(web::post().to(controllers::submit_transaction)),

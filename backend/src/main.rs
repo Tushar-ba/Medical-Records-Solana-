@@ -5,7 +5,7 @@ use std::env;
 mod app_state;
 mod controllers;
 mod error;
-mod middleware; // Ensure this is present
+mod middleware;
 mod models;
 mod services;
 mod utils;
@@ -51,6 +51,8 @@ async fn main() -> std::io::Result<()> {
                             .wrap(middleware::jwt::jwt_middleware())
                             .route("/prepare/add-read-authority", web::post().to(controllers::prepare_add_read_authority))
                             .route("/prepare/remove-read-authority", web::post().to(controllers::prepare_remove_read_authority))
+                            .route("/prepare/add-write-authority", web::post().to(controllers::prepare_add_write_authority))
+                            .route("/prepare/remove-write-authority", web::post().to(controllers::prepare_remove_write_authority))
                             .route("/submit", web::post().to(controllers::submit_transaction))
                             .route("/authorities", web::get().to(controllers::get_authorities)),
                     ),

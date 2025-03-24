@@ -1,7 +1,7 @@
 const { Connection, Keypair, Transaction, sendAndConfirmRawTransaction } = require('@solana/web3.js');
 
 // The serialized transaction from the backend
-const serializedTransaction = "AX9fT2Z8hKNjkvMU5tN2Cgs6hPgwfOp3t1JMTdL61J75a5zqF/02gC5p4T/BF8PU5WeIBOm0Q3xtelu2eZoEtQEBAAIF+t0rZ/m2aG8+M6Llre9p4jc3v/AeM2Q+iT5ivckQtUcsCTTW8bNksHMlhA47DqLSytEcBCZeF9ZB9aS1j4wxN2qmvGv8EwEqvp+BhjMh7Fa6ZkGDa415WUBDkriJcRrxAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/cr/PQyHvw/b//iHuvvZ2pLZEjGepqjtM3Dg2d5w9RDK7YmW3L/THkeIT9uzetXWOSPYvnnpSjyra0CKh1nTaAQQEAAIBAyh57nosbIeMSujt3isch2ewByIlRngYb9rX23eNcu5aPGVeTrcIrfze";
+const serializedTransaction = "AdjI1Z9zsic8gwUTj1bAKEGJjxB5yItgK5AvK4TGnoNFVxb5hQl4QsQrSE+g7CX26ISnI+yuAAyS67louc7KsQIBAAIF+t0rZ/m2aG8+M6Llre9p4jc3v/AeM2Q+iT5ivckQtUcsCTTW8bNksHMlhA47DqLSytEcBCZeF9ZB9aS1j4wxN2qmvGv8EwEqvp+BhjMh7Fa6ZkGDa415WUBDkriJcRrxAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/cr/PQyHvw/b//iHuvvZ2pLZEjGepqjtM3Dg2d5w9RGsWIYGc5L5o6SjkmCfr7itiNMhBevNZvmgFZurwDNUEAQQEAAIBAyi4FXtTWCKfeujt3isch2ewByIlRngYb9rX23eNcu5aPGVeTrcIrfze";
 
 // Your private key as a byte array (also the admin keypair)
 const privateKeyBytes = Uint8Array.from([

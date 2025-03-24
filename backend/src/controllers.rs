@@ -6,7 +6,7 @@ use bs58;
 use crate::app_state::AppState;
 use crate::error::AppError;
 use crate::middleware::jwt::generate_jwt;
-use crate::models::{AuthRequest, AuthResponse, AddReadAuthorityRequest, RemoveReadAuthorityRequest, SubmitTransactionRequest, SubmitTransactionResponse, AuthoritiesResponse};
+use crate::models::{AuthRequest, AuthResponse, AddReadAuthorityRequest, RemoveReadAuthorityRequest, AddWriteAuthorityRequest, RemoveWriteAuthorityRequest, SubmitTransactionRequest, SubmitTransactionResponse, AuthoritiesResponse};
 
 pub async fn authenticate(
     req: web::Json<AuthRequest>,
@@ -76,6 +76,40 @@ pub async fn prepare_remove_read_authority(
     };
 
     let prepared_tx = data.solana_service.prepare_remove_read_authority(&modified_req).await?;
+    Ok(HttpResponse::Ok().json(prepared_tx))
+}
+
+pub async fn prepare_add_write_authority(
+    req: web::Json<AddWriteAuthorityRequest>,
+    data: web::Data<AppState>,
+    req_data: web::ReqData<String>,
+) -> Result<HttpResponse, AppError> {
+    info!("Received prepare_add_write_authority request for new authority: {}", req.new_authority);
+
+    let user_pubkey = req_data.into_inner();
+    let modified_req = AddWriteAuthorityRequest {
+        user_pubkey: user_pubkey.clone(),
+        new_authority: req.new_authority.clone(),
+    };
+
+    let prepared_tx = data.solana_service.prepare_add_write_authority(&modified_req).await?;
+    Ok(HttpResponse::Ok().json(prepared_tx))
+}
+
+pub async fn prepare_remove_write_authority(
+    req: web::Json<RemoveWriteAuthorityRequest>,
+    data: web::Data<AppState>,
+    req_data: web::ReqData<String>,
+) -> Result<HttpResponse, AppError> {
+    info!("Received prepare_remove_write_authority request for authority: {}", req.authority_to_remove);
+
+    let user_pubkey = req_data.into_inner();
+    let modified_req = RemoveWriteAuthorityRequest {
+        user_pubkey: user_pubkey.clone(),
+        authority_to_remove: req.authority_to_remove.clone(),
+    };
+
+    let prepared_tx = data.solana_service.prepare_remove_write_authority(&modified_req).await?;
     Ok(HttpResponse::Ok().json(prepared_tx))
 }
 
