@@ -1,8 +1,7 @@
-use std::sync::Mutex;
-use crate::config::Config; // Updated import
-use crate::services::SolanaService; // Updated import
+use crate::models::JwtConfig;
+use crate::services::TransactionService;
 
 pub struct AppState {
-    pub config: Mutex<Config>,
-    pub solana_service: SolanaService,
+    pub solana_service: TransactionService,
+    pub jwt_config: JwtConfig,
 }

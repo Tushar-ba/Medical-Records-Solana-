@@ -79,6 +79,10 @@ async function authenticateWithPhantom() {
         });
 
         console.log('Response status:', response.status);
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Authentication failed: ${response.status} - ${errorText}`);
+        }
         const result = await response.json();
         console.log('Authentication Response:', result);
         return result.token;

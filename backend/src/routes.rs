@@ -4,7 +4,7 @@ use actix_web_httpauth::middleware::HttpAuthentication;
 use crate::{controllers, middleware::jwt};
 
 pub fn init_routes(cfg: &mut web::ServiceConfig) {
-    let jwt_middleware = HttpAuthentication::bearer(jwt::jwt_middleware);
+    let jwt_middleware = HttpAuthentication::bearer(jwt::validator);
 
     cfg.service(
         web::scope("/api")
