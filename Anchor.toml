@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-medical_record_solana = "EoajdANNqiHD4JWwcwbTphxTgcJtR28mvwrNfK3TtyVf"
+medical_record_solana = "JCASyF1M3MVV6ADByM1F6jEFWZGg29YLCiCjjJtBBcEP"
 
 [registry]
 url = "https://api.apr.dev"

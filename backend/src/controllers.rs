@@ -51,9 +51,20 @@ pub async fn authenticate(
 pub async fn prepare_add_read_authority(
     req: web::Json<AddReadAuthorityRequest>,
     data: web::Data<AppState>,
+    req_data: web::ReqData<String>,
 ) -> Result<HttpResponse, AppError> {
     info!("Received prepare_add_read_authority request for new authority: {}", req.new_authority);
-    let prepared_tx = data.solana_service.prepare_add_read_authority(&req).await?;
+
+    // Extract the user's public key from the JWT token
+    let user_pubkey = req_data.into_inner();
+
+    // Create a modified request with the user_pubkey
+    let modified_req = AddReadAuthorityRequest {
+        user_pubkey: user_pubkey.clone(),
+        new_authority: req.new_authority.clone(),
+    };
+
+    let prepared_tx = data.solana_service.prepare_add_read_authority(&modified_req).await?;
     Ok(HttpResponse::Ok().json(prepared_tx))
 }
 

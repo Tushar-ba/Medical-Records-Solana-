@@ -16,6 +16,7 @@ pub struct AuthResponse {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AddReadAuthorityRequest {
+    pub user_pubkey: String,
     pub new_authority: String,
 }
 
@@ -28,8 +29,7 @@ pub struct PreparedTransaction {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SubmitTransactionRequest {
-    pub signature: String,
-    pub serialized_transaction: String,
+    pub serialized_transaction: String,  // Removed the `signature` field
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -37,7 +37,6 @@ pub struct SubmitTransactionResponse {
     pub signature: String,
 }
 
-// Add JwtConfig struct
 #[derive(Clone)]
 pub struct JwtConfig {
     pub secret: String,
