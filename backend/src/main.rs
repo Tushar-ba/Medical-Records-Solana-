@@ -53,7 +53,8 @@ async fn main() -> std::io::Result<()> {
                             .route("/prepare/remove-read-authority", web::post().to(controllers::prepare_remove_read_authority))
                             .route("/prepare/add-write-authority", web::post().to(controllers::prepare_add_write_authority))
                             .route("/prepare/remove-write-authority", web::post().to(controllers::prepare_remove_write_authority))
-                            .route("/prepare/create-patient", web::post().to(controllers::prepare_create_patient)) // Added this line
+                            .route("/prepare/create-patient", web::post().to(controllers::prepare_create_patient))
+                            .route("/prepare/update-patient", web::post().to(controllers::prepare_update_patient)) // Added this line
                             .route("/submit", web::post().to(controllers::submit_transaction))
                             .route("/authorities", web::get().to(controllers::get_authorities)),
                     ),

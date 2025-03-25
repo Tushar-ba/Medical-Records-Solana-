@@ -37,6 +37,11 @@ pub fn init_routes(cfg: &mut web::ServiceConfig) {
                     .route(web::post().to(controllers::prepare_create_patient)),
             )
             .service(
+                web::resource("/transactions/prepare/update-patient")
+                    .wrap(jwt_middleware.clone())
+                    .route(web::post().to(controllers::prepare_update_patient)), // Added this endpoint
+            )
+            .service(
                 web::resource("/transactions/submit")
                     .wrap(jwt_middleware.clone())
                     .route(web::post().to(controllers::submit_transaction)),

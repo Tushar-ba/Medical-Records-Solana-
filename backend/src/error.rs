@@ -1,6 +1,9 @@
 use actix_web::{http::StatusCode, HttpResponse, ResponseError};
 use serde_json::Error as SerdeError;
 use solana_client::client_error::ClientError;
+use solana_sdk::pubkey::ParsePubkeyError;
+use std::array::TryFromSliceError; // Corrected import
+use std::io::Error as IoError;
 
 #[derive(Debug)]
 pub enum AppError {
@@ -8,7 +11,7 @@ pub enum AppError {
     Unauthorized(String),
     InternalServerError(String),
     SolanaError(String),
-    InvalidProgramId(String), // Added this variant
+    InvalidProgramId(String),
 }
 
 impl std::fmt::Display for AppError {
@@ -50,5 +53,41 @@ impl From<ClientError> for AppError {
 impl From<SerdeError> for AppError {
     fn from(error: SerdeError) -> Self {
         AppError::InternalServerError(format!("Serialization error: {}", error))
+    }
+}
+
+impl From<bs58::decode::Error> for AppError {
+    fn from(error: bs58::decode::Error) -> Self {
+        AppError::BadRequest(format!("Base58 decode error: {}", error))
+    }
+}
+
+impl From<TryFromSliceError> for AppError {
+    fn from(error: TryFromSliceError) -> Self {
+        AppError::BadRequest(format!("Signature conversion error: {}", error))
+    }
+}
+
+impl From<ParsePubkeyError> for AppError {
+    fn from(error: ParsePubkeyError) -> Self {
+        AppError::BadRequest(format!("Public key parse error: {}", error))
+    }
+}
+
+impl From<base64::DecodeError> for AppError {
+    fn from(error: base64::DecodeError) -> Self {
+        AppError::BadRequest(format!("Base64 decode error: {}", error))
+    }
+}
+
+impl From<Box<bincode::ErrorKind>> for AppError {
+    fn from(error: Box<bincode::ErrorKind>) -> Self {
+        AppError::InternalServerError(format!("Bincode deserialization error: {}", error))
+    }
+}
+
+impl From<IoError> for AppError {
+    fn from(error: IoError) -> Self {
+        AppError::InternalServerError(format!("IO error during deserialization: {}", error))
     }
 }

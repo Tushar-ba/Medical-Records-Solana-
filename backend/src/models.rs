@@ -42,7 +42,7 @@ pub struct RemoveWriteAuthorityRequest {
 pub struct PreparedTransaction {
     pub serialized_transaction: String,
     pub transaction_type: String,
-    pub metadata: String, // Unchanged for existing endpoints
+    pub metadata: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -71,12 +71,26 @@ pub struct AuthoritiesResponse {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreatePatientRequest {
     pub user_pubkey: String,
-    pub patient_data: String, // Raw patient data to be encrypted in backend
+    pub patient_data: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PreparedPatientTransaction {
     pub serialized_transaction: String,
     pub transaction_type: String,
-    pub encrypted_data_with_seed: String, // Specific to create_patient
+    pub encrypted_data_with_seed: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdatePatientRequest {
+    pub user_pubkey: String,
+    pub patient_seed: String, // Required since it’s part of the PDA derivation
+    pub patient_data: String, // Raw data to be encrypted
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PreparedUpdatePatientTransaction {
+    pub serialized_transaction: String,
+    pub transaction_type: String,
+    pub encrypted_data_with_seed: String,
 }
