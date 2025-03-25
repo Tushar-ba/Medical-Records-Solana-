@@ -32,6 +32,11 @@ pub fn init_routes(cfg: &mut web::ServiceConfig) {
                     .route(web::post().to(controllers::prepare_remove_write_authority)),
             )
             .service(
+                web::resource("/transactions/prepare/create-patient")
+                    .wrap(jwt_middleware.clone())
+                    .route(web::post().to(controllers::prepare_create_patient)),
+            )
+            .service(
                 web::resource("/transactions/submit")
                     .wrap(jwt_middleware.clone())
                     .route(web::post().to(controllers::submit_transaction)),

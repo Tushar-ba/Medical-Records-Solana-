@@ -42,7 +42,7 @@ pub struct RemoveWriteAuthorityRequest {
 pub struct PreparedTransaction {
     pub serialized_transaction: String,
     pub transaction_type: String,
-    pub metadata: String,
+    pub metadata: String, // Unchanged for existing endpoints
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -66,4 +66,17 @@ pub struct AuthoritiesResponse {
     pub authority: String,
     pub read_authorities: Vec<String>,
     pub write_authorities: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreatePatientRequest {
+    pub user_pubkey: String,
+    pub patient_data: String, // Raw patient data to be encrypted in backend
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PreparedPatientTransaction {
+    pub serialized_transaction: String,
+    pub transaction_type: String,
+    pub encrypted_data_with_seed: String, // Specific to create_patient
 }

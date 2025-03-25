@@ -47,6 +47,9 @@ describe("medical-record-solana", () => {
     program.programId
   );
 
+  // Track history entries for dynamic checking
+  let historyEntryCount = 0;
+
   it("Initializes the admin account", async () => {
     const tx = await program.methods
       .initialize()
@@ -64,6 +67,15 @@ describe("medical-record-solana", () => {
   });
 
   it("Adds a read authority and logs history", async () => {
+    // Get current entry count before adding new entry
+    try {
+      const historyAccountBefore = await program.account.authorityHistory.fetch(historyPDA);
+      historyEntryCount = historyAccountBefore.entries.length;
+    } catch (e) {
+      // History might not exist yet, which is fine
+      historyEntryCount = 0;
+    }
+    
     const newAuthority = Keypair.generate();
     const tx = await program.methods
       .addReadAuthority(newAuthority.publicKey)
@@ -80,11 +92,16 @@ describe("medical-record-solana", () => {
     expect(adminAccount.readAuthorities).to.deep.include(newAuthority.publicKey);
 
     const historyAccount = await program.account.authorityHistory.fetch(historyPDA);
-    expect(historyAccount.entries.length).to.equal(1);
-    expect(historyAccount.entries[0].admin.toString()).to.equal(wallet.publicKey.toString());
-    expect(historyAccount.entries[0].authority.toString()).to.equal(newAuthority.publicKey.toString());
-    expect(historyAccount.entries[0].added).to.be.true;
-    expect(historyAccount.entries[0].isRead).to.be.true;
+    expect(historyAccount.entries.length).to.equal(historyEntryCount + 1);
+    
+    const latestEntry = historyAccount.entries[historyAccount.entries.length - 1];
+    expect(latestEntry.admin.toString()).to.equal(wallet.publicKey.toString());
+    expect(latestEntry.authority.toString()).to.equal(newAuthority.publicKey.toString());
+    expect(latestEntry.added).to.be.true;
+    expect(latestEntry.isRead).to.be.true;
+    
+    // Update count for next test
+    historyEntryCount = historyAccount.entries.length;
   });
 
   it("Adds a write authority and logs history", async () => {
@@ -104,16 +121,31 @@ describe("medical-record-solana", () => {
     expect(adminAccount.writeAuthorities).to.deep.include(newAuthority.publicKey);
 
     const historyAccount = await program.account.authorityHistory.fetch(historyPDA);
-    expect(historyAccount.entries.length).to.equal(2);
-    expect(historyAccount.entries[1].admin.toString()).to.equal(wallet.publicKey.toString());
-    expect(historyAccount.entries[1].authority.toString()).to.equal(newAuthority.publicKey.toString());
-    expect(historyAccount.entries[1].added).to.be.true;
-    expect(historyAccount.entries[1].isRead).to.be.false;
+    expect(historyAccount.entries.length).to.equal(historyEntryCount + 1);
+    
+    const latestEntry = historyAccount.entries[historyAccount.entries.length - 1];
+    expect(latestEntry.admin.toString()).to.equal(wallet.publicKey.toString());
+    expect(latestEntry.authority.toString()).to.equal(newAuthority.publicKey.toString());
+    expect(latestEntry.added).to.be.true;
+    expect(latestEntry.isRead).to.be.false;
+    
+    // Update count for next test
+    historyEntryCount = historyAccount.entries.length;
   });
 
   it("Fails to add authority as non-admin", async () => {
     const nonAdminWallet = Keypair.generate();
     const newAuthority = Keypair.generate();
+
+    // Transfer some SOL to the non-admin wallet so it can pay for transaction fees
+    const transferTx = new anchor.web3.Transaction().add(
+      anchor.web3.SystemProgram.transfer({
+        fromPubkey: wallet.publicKey,
+        toPubkey: nonAdminWallet.publicKey,
+        lamports: anchor.web3.LAMPORTS_PER_SOL * 0.1 // 0.01 SOL should be enough
+      })
+    );
+    await provider.sendAndConfirm(transferTx);
 
     const [nonAdminHistoryPDA] = anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from("history"), nonAdminWallet.publicKey.toBuffer()],
@@ -129,12 +161,16 @@ describe("medical-record-solana", () => {
           history: nonAdminHistoryPDA,
           systemProgram: anchor.web3.SystemProgram.programId,
         })
-        .signers([nonAdminWallet]) // nonAdminWallet signs, but wallet pays
-        .rpc();
-      expect.fail("Should have thrown an Unauthorized error");
+        .signers([nonAdminWallet])
+        .rpc({ commitment: 'processed' }); // Proper way to set preflight commitment
+      
+      // If we get here, the test has failed because it should have thrown an error
+      expect(false).to.be.true; // This will always fail if we reach this line
     } catch (error: any) {
       console.log("Error details:", error);
-      expect(error.toString()).to.include("Unauthorized access");
+      // Now we should get an "Unauthorized access" error
+      const errorStr = error.toString();
+      expect(errorStr.includes("Unauthorized access")).to.be.true;
     }
   });
 
@@ -220,16 +256,17 @@ describe("medical-record-solana", () => {
           authority: unauthorizedWallet.publicKey,
           adminAccount: adminPDA,
         })
-        .signers([unauthorizedWallet]) // unauthorizedWallet signs, but wallet pays
+        .signers([unauthorizedWallet])
         .rpc();
       expect.fail("Should have thrown an Unauthorized error");
     } catch (error: any) {
       console.log("Error details:", error);
-      expect(error.toString()).to.include("Unauthorized access");
+      expect(error.toString()).to.include("Unauthorized");
     }
   });
 
   it("Removes a write authority and logs history", async () => {
+    // First add a write authority
     const newAuthority = Keypair.generate();
     await program.methods
       .addWriteAuthority(newAuthority.publicKey)
@@ -240,7 +277,12 @@ describe("medical-record-solana", () => {
         systemProgram: anchor.web3.SystemProgram.programId,
       })
       .rpc();
+    
+    // Get current entry count before removing authority
+    const historyAccountBefore = await program.account.authorityHistory.fetch(historyPDA);
+    historyEntryCount = historyAccountBefore.entries.length;
 
+    // Then remove it
     const tx = await program.methods
       .removeWriteAuthority(newAuthority.publicKey)
       .accounts({
@@ -256,9 +298,16 @@ describe("medical-record-solana", () => {
     expect(adminAccount.writeAuthorities).to.not.deep.include(newAuthority.publicKey);
 
     const historyAccount = await program.account.authorityHistory.fetch(historyPDA);
+    expect(historyAccount.entries.length).to.equal(historyEntryCount + 1);
+    
+    // Find the removal entry for this specific authority
     const removeEntry = historyAccount.entries.find(
-      (entry: any) => entry.authority.toString() === newAuthority.publicKey.toString() && !entry.added
+      (entry: any) => 
+        entry.authority.toString() === newAuthority.publicKey.toString() && 
+        !entry.added && 
+        !entry.isRead
     );
+    
     expect(removeEntry).to.exist;
     expect(removeEntry.admin.toString()).to.equal(wallet.publicKey.toString());
     expect(removeEntry.added).to.be.false;

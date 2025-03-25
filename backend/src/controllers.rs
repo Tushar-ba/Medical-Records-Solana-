@@ -2,11 +2,10 @@ use actix_web::{web, HttpResponse};
 use log::{info, error};
 use solana_sdk::signature::Signature;
 use bs58;
-
 use crate::app_state::AppState;
 use crate::error::AppError;
 use crate::middleware::jwt::generate_jwt;
-use crate::models::{AuthRequest, AuthResponse, AddReadAuthorityRequest, RemoveReadAuthorityRequest, AddWriteAuthorityRequest, RemoveWriteAuthorityRequest, SubmitTransactionRequest, SubmitTransactionResponse, AuthoritiesResponse};
+use crate::models::{AuthRequest, AuthResponse, AddReadAuthorityRequest, RemoveReadAuthorityRequest, AddWriteAuthorityRequest, RemoveWriteAuthorityRequest, SubmitTransactionRequest, SubmitTransactionResponse, CreatePatientRequest, PreparedPatientTransaction};
 
 pub async fn authenticate(
     req: web::Json<AuthRequest>,
@@ -110,6 +109,23 @@ pub async fn prepare_remove_write_authority(
     };
 
     let prepared_tx = data.solana_service.prepare_remove_write_authority(&modified_req).await?;
+    Ok(HttpResponse::Ok().json(prepared_tx))
+}
+
+pub async fn prepare_create_patient(
+    req: web::Json<CreatePatientRequest>,
+    data: web::Data<AppState>,
+    req_data: web::ReqData<String>,
+) -> Result<HttpResponse, AppError> {
+    info!("Received prepare_create_patient request");
+
+    let user_pubkey = req_data.into_inner();
+    let modified_req = CreatePatientRequest {
+        user_pubkey,
+        patient_data: req.patient_data.clone(),
+    };
+
+    let prepared_tx = data.solana_service.prepare_create_patient(&modified_req).await?;
     Ok(HttpResponse::Ok().json(prepared_tx))
 }
 

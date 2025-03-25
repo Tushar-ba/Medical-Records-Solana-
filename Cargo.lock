@@ -298,6 +298,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "aes-gcm"
+version = "0.10.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "831010a0f742e1209b3bcea8fab6a8e149051ba6099432c8cb2cc117dec3ead1"
+dependencies = [
+ "aead",
+ "aes",
+ "cipher",
+ "ctr",
+ "ghash",
+ "subtle",
+]
+
+[[package]]
 name = "aes-gcm-siv"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -864,6 +878,7 @@ dependencies = [
  "actix-cors",
  "actix-web",
  "actix-web-httpauth",
+ "aes-gcm",
  "anchor-client",
  "anchor-lang",
  "base64 0.22.1",
@@ -877,8 +892,10 @@ dependencies = [
  "jsonwebtoken",
  "log",
  "mutex",
+ "rand 0.8.5",
  "serde",
  "serde_json",
+ "sha2 0.10.8",
  "solana-account-decoder",
  "solana-client",
  "solana-program",
@@ -2024,6 +2041,16 @@ dependencies = [
  "r-efi",
  "wasi 0.14.2+wasi-0.2.4",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "ghash"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0d8a4362ccb29cb0b265253fb0a2728f592895ee6854fd9bc13f2ffda266ff1"
+dependencies = [
+ "opaque-debug",
+ "polyval",
 ]
 
 [[package]]
