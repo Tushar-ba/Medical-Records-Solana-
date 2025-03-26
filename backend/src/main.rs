@@ -56,13 +56,15 @@ async fn main() -> std::io::Result<()> {
                             .route("/prepare/create-patient", web::post().to(controllers::prepare_create_patient))
                             .route("/prepare/update-patient", web::post().to(controllers::prepare_update_patient))
                             .route("/submit", web::post().to(controllers::submit_transaction))
-                            .route("/authorities", web::get().to(controllers::get_authorities)),
+                            .route("/authorities", web::get().to(controllers::get_authorities))
+                            .route("/authority-history", web::get().to(controllers::get_authority_history))
                     )
                     .service(
                         web::scope("")
                             .wrap(middleware::jwt::jwt_middleware())
                             .route("/patient/{patient_seed}", web::get().to(controllers::get_patient))
-                            .route("/view_patient/{token}", web::get().to(controllers::view_patient)),
+                            .route("/view_patient/{token}", web::get().to(controllers::view_patient))
+                            .route("/patients/addresses", web::get().to(controllers::get_patient_addresses))
                     ),
             )
             .wrap(actix_web::middleware::Logger::default())

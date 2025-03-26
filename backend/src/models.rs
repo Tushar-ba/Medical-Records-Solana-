@@ -88,7 +88,7 @@ pub struct PreparedUpdatePatientTransaction {
     pub encrypted_data_with_seed: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)] // Added Debug
+#[derive(Serialize, Deserialize, Debug)]
 pub struct AuthoritiesResponse {
     pub authority: String,
     pub read_authorities: Vec<String>,
@@ -98,4 +98,23 @@ pub struct AuthoritiesResponse {
 #[derive(Serialize, Deserialize)]
 pub struct GetPatientResponse {
     pub view_url: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct PatientAddressesResponse {
+    pub patient_addresses: Vec<String>, // List of PDAs
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct AuthorityHistoryResponse {
+    pub entries: Vec<HistoryEntry>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct HistoryEntry {
+    pub admin: String,
+    pub authority: String,
+    pub added: bool,
+    pub is_read: bool,
+    pub timestamp: i64,
 }

@@ -5,10 +5,9 @@ use bs58;
 use crate::app_state::AppState;
 use crate::error::AppError;
 use crate::middleware::jwt::generate_jwt;
-use crate::models::{AuthRequest, AuthResponse, AddReadAuthorityRequest, RemoveReadAuthorityRequest, AddWriteAuthorityRequest, RemoveWriteAuthorityRequest, SubmitTransactionRequest, SubmitTransactionResponse, CreatePatientRequest, PreparedPatientTransaction, UpdatePatientRequest, PreparedUpdatePatientTransaction, GetPatientResponse};
 
 pub async fn authenticate(
-    req: web::Json<AuthRequest>,
+    req: web::Json<crate::models::AuthRequest>,
     data: web::Data<AppState>,
 ) -> Result<HttpResponse, AppError> {
     info!("Received authentication request for public key: {}", req.public_key);
@@ -23,7 +22,7 @@ pub async fn authenticate(
         return Err(AppError::Unauthorized("Signature verification failed".to_string()));
     }
     let token = generate_jwt(&req.public_key, &data.jwt_config.secret, data.jwt_config.expires_in)?;
-    let response = AuthResponse {
+    let response = crate::models::AuthResponse {
         token,
         expires_in: data.jwt_config.expires_in,
         public_key: req.public_key.clone(),
@@ -33,13 +32,13 @@ pub async fn authenticate(
 }
 
 pub async fn prepare_add_read_authority(
-    req: web::Json<AddReadAuthorityRequest>,
+    req: web::Json<crate::models::AddReadAuthorityRequest>,
     data: web::Data<AppState>,
     req_data: web::ReqData<String>,
 ) -> Result<HttpResponse, AppError> {
     info!("Received prepare_add_read_authority request for new authority: {}", req.new_authority);
     let user_pubkey = req_data.into_inner();
-    let modified_req = AddReadAuthorityRequest {
+    let modified_req = crate::models::AddReadAuthorityRequest {
         user_pubkey: user_pubkey.clone(),
         new_authority: req.new_authority.clone(),
     };
@@ -48,13 +47,13 @@ pub async fn prepare_add_read_authority(
 }
 
 pub async fn prepare_remove_read_authority(
-    req: web::Json<RemoveReadAuthorityRequest>,
+    req: web::Json<crate::models::RemoveReadAuthorityRequest>,
     data: web::Data<AppState>,
     req_data: web::ReqData<String>,
 ) -> Result<HttpResponse, AppError> {
     info!("Received prepare_remove_read_authority request for authority: {}", req.authority_to_remove);
     let user_pubkey = req_data.into_inner();
-    let modified_req = RemoveReadAuthorityRequest {
+    let modified_req = crate::models::RemoveReadAuthorityRequest {
         user_pubkey: user_pubkey.clone(),
         authority_to_remove: req.authority_to_remove.clone(),
     };
@@ -63,13 +62,13 @@ pub async fn prepare_remove_read_authority(
 }
 
 pub async fn prepare_add_write_authority(
-    req: web::Json<AddWriteAuthorityRequest>,
+    req: web::Json<crate::models::AddWriteAuthorityRequest>,
     data: web::Data<AppState>,
     req_data: web::ReqData<String>,
 ) -> Result<HttpResponse, AppError> {
     info!("Received prepare_add_write_authority request for new authority: {}", req.new_authority);
     let user_pubkey = req_data.into_inner();
-    let modified_req = AddWriteAuthorityRequest {
+    let modified_req = crate::models::AddWriteAuthorityRequest {
         user_pubkey: user_pubkey.clone(),
         new_authority: req.new_authority.clone(),
     };
@@ -78,13 +77,13 @@ pub async fn prepare_add_write_authority(
 }
 
 pub async fn prepare_remove_write_authority(
-    req: web::Json<RemoveWriteAuthorityRequest>,
+    req: web::Json<crate::models::RemoveWriteAuthorityRequest>,
     data: web::Data<AppState>,
     req_data: web::ReqData<String>,
 ) -> Result<HttpResponse, AppError> {
     info!("Received prepare_remove_write_authority request for authority: {}", req.authority_to_remove);
     let user_pubkey = req_data.into_inner();
-    let modified_req = RemoveWriteAuthorityRequest {
+    let modified_req = crate::models::RemoveWriteAuthorityRequest {
         user_pubkey: user_pubkey.clone(),
         authority_to_remove: req.authority_to_remove.clone(),
     };
@@ -93,13 +92,13 @@ pub async fn prepare_remove_write_authority(
 }
 
 pub async fn prepare_create_patient(
-    req: web::Json<CreatePatientRequest>,
+    req: web::Json<crate::models::CreatePatientRequest>,
     data: web::Data<AppState>,
     req_data: web::ReqData<String>,
 ) -> Result<HttpResponse, AppError> {
     info!("Received prepare_create_patient request");
     let user_pubkey = req_data.into_inner();
-    let modified_req = CreatePatientRequest {
+    let modified_req = crate::models::CreatePatientRequest {
         user_pubkey,
         patient_data: req.patient_data.clone(),
     };
@@ -108,13 +107,13 @@ pub async fn prepare_create_patient(
 }
 
 pub async fn prepare_update_patient(
-    req: web::Json<UpdatePatientRequest>,
+    req: web::Json<crate::models::UpdatePatientRequest>,
     data: web::Data<AppState>,
     req_data: web::ReqData<String>,
 ) -> Result<HttpResponse, AppError> {
     info!("Received prepare_update_patient request");
     let user_pubkey = req_data.into_inner();
-    let modified_req = UpdatePatientRequest {
+    let modified_req = crate::models::UpdatePatientRequest {
         user_pubkey,
         patient_seed: req.patient_seed.clone(),
         patient_data: req.patient_data.clone(),
@@ -124,12 +123,12 @@ pub async fn prepare_update_patient(
 }
 
 pub async fn submit_transaction(
-    req: web::Json<SubmitTransactionRequest>,
+    req: web::Json<crate::models::SubmitTransactionRequest>,
     data: web::Data<AppState>,
 ) -> Result<HttpResponse, AppError> {
     info!("Received submit_transaction request");
     let signature = data.solana_service.submit_transaction(&req.serialized_transaction).await?;
-    let response = SubmitTransactionResponse { signature };
+    let response = crate::models::SubmitTransactionResponse { signature };
     Ok(HttpResponse::Ok().json(response))
 }
 
@@ -163,4 +162,22 @@ pub async fn view_patient(
     info!("Received view_patient request for token: {}", token);
     let decrypted_data = data.solana_service.view_patient(&token, &data).await?;
     Ok(HttpResponse::Ok().body(decrypted_data))
+}
+
+pub async fn get_authority_history(
+    data: web::Data<AppState>,
+) -> Result<HttpResponse, AppError> {
+    info!("Received get_authority_history request");
+    let history = data.solana_service.get_authority_history().await?;
+    Ok(HttpResponse::Ok().json(history))
+}
+
+pub async fn get_patient_addresses(
+    data: web::Data<AppState>,
+    req_data: web::ReqData<String>,
+) -> Result<HttpResponse, AppError> {
+    let user_pubkey = req_data.into_inner();
+    info!("Received get_patient_addresses request for user: {}", user_pubkey);
+    let addresses = data.solana_service.get_patient_addresses(&user_pubkey).await?;
+    Ok(HttpResponse::Ok().json(addresses))
 }

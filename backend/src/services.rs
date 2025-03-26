@@ -6,23 +6,31 @@ use solana_sdk::{
     system_program,
     transaction::Transaction,
 };
+use solana_client::rpc_filter::{RpcFilterType, Memcmp}; // Remove duplicate import
+use solana_account_decoder::UiAccountEncoding;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 use tokio::time::sleep;
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use bincode;
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshDeserialize;
 use crate::app_state::AppState;
 use crate::error::AppError;
-use crate::models::{AddReadAuthorityRequest, RemoveReadAuthorityRequest, AddWriteAuthorityRequest, RemoveWriteAuthorityRequest, PreparedTransaction, AuthoritiesResponse, CreatePatientRequest, PreparedPatientTransaction, UpdatePatientRequest, PreparedUpdatePatientTransaction, GetPatientResponse};
+use crate::models::{
+    AddReadAuthorityRequest, RemoveReadAuthorityRequest, AddWriteAuthorityRequest,
+    RemoveWriteAuthorityRequest, PreparedTransaction, CreatePatientRequest,
+    PreparedPatientTransaction, UpdatePatientRequest, PreparedUpdatePatientTransaction,
+    GetPatientResponse, PatientAddressesResponse, AuthorityHistoryResponse, HistoryEntry,
+};
 use crate::utils;
 use rand::Rng;
 use aes_gcm::{
     aead::{Aead, KeyInit},
-    Aes256Gcm, Nonce, Key
+    Aes256Gcm, Nonce, Key,
 };
 use uuid::Uuid;
+use solana_client::rpc_config::{RpcProgramAccountsConfig, RpcAccountInfoConfig};
 
 pub struct TransactionService {
     client: RpcClient,
@@ -90,6 +98,7 @@ impl TransactionService {
         transaction.message.recent_blockhash = recent_blockhash;
         let serialized_transaction = utils::serialize_transaction(&transaction)?;
         let encrypted_data_with_seed = format!("{}|{}", encrypted_string, patient_seed_pubkey.to_string());
+
         Ok(PreparedPatientTransaction {
             serialized_transaction,
             transaction_type: "create_patient".to_string(),
@@ -306,7 +315,7 @@ impl TransactionService {
         Ok(signature.to_string())
     }
 
-    pub async fn get_authorities(&self) -> Result<AuthoritiesResponse, AppError> {
+    pub async fn get_authorities(&self) -> Result<crate::models::AuthoritiesResponse, AppError> {
         log::info!("Fetching authorities list");
         let (admin_pda, _bump) = Pubkey::find_program_address(&[b"admin"], &self.program_id);
         let account_info = self.client.get_account(&admin_pda).await?;
@@ -321,7 +330,7 @@ impl TransactionService {
         }
         let data = &account_info.data[8..];
         let admin: AdminAccount = BorshDeserialize::deserialize(&mut data.as_ref())?;
-        let response = AuthoritiesResponse {
+        let response = crate::models::AuthoritiesResponse {
             authority: admin.authority.to_string(),
             read_authorities: admin.read_authorities.into_iter().map(|pk| pk.to_string()).collect(),
             write_authorities: admin.write_authorities.into_iter().map(|pk| pk.to_string()).collect(),
@@ -339,7 +348,7 @@ impl TransactionService {
             &[b"patient", user_pubkey.as_ref(), patient_seed_pubkey.as_ref()],
             &self.program_id,
         );
-        let (_admin_pda, _bump) = Pubkey::find_program_address(&[b"admin"], &self.program_id); // Prefixed with underscore
+        let (_admin_pda, _bump) = Pubkey::find_program_address(&[b"admin"], &self.program_id);
 
         let account_info = self.client.get_account(&patient_pda).await?;
         if account_info.owner != self.program_id {
@@ -361,15 +370,13 @@ impl TransactionService {
             return Err(AppError::BadRequest("Patient record not initialized".to_string()));
         }
 
-        // Generate unique token and set expiration (1 hour)
         let token = Uuid::new_v4().to_string();
         let expiration = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
-            .as_secs() + 3600; // 1 hour from now
+            .as_secs() + 3600;
         app_state.token_store.insert(token.clone(), (patient_seed.to_string(), expiration));
 
-        // Construct the URL
         let view_url = format!("http://localhost:8080/api/view_patient/{}", token);
 
         Ok(GetPatientResponse { view_url })
@@ -418,7 +425,6 @@ impl TransactionService {
         }
         let patient: PatientAccount = BorshDeserialize::deserialize(&mut patient_data.as_ref())?;
 
-        // Decrypt the data
         let parts: Vec<&str> = patient.encrypted_data.split('|').collect();
         if parts.len() != 2 {
             return Err(AppError::InternalServerError("Invalid encrypted data format".to_string()));
@@ -431,6 +437,92 @@ impl TransactionService {
             .map_err(|e| AppError::InternalServerError(format!("Decryption failed: {}", e)))?;
 
         Ok(String::from_utf8(decrypted_data).unwrap_or_else(|_| "Decrypted data not UTF-8".to_string()))
+    }
+
+    pub async fn get_authority_history(&self) -> Result<AuthorityHistoryResponse, AppError> {
+        log::info!("Fetching authority history");
+        let (history_pda, _bump) = Pubkey::find_program_address(
+            &[b"history", self.admin_pubkey.as_ref()],
+            &self.program_id,
+        );
+
+        let account_info = self.client.get_account(&history_pda).await?;
+        if account_info.owner != self.program_id {
+            return Err(AppError::BadRequest(
+                "History account not owned by program".to_string(),
+            ));
+        }
+
+        #[derive(BorshDeserialize)]
+        struct LocalHistoryEntry {
+            admin: Pubkey,
+            authority: Pubkey,
+            added: bool,
+            is_read: bool,
+            timestamp: i64,
+        }
+
+        #[derive(BorshDeserialize)]
+        struct AuthorityHistory {
+            entries: Vec<LocalHistoryEntry>,
+        }
+
+        let data = &account_info.data[8..];
+        let history: AuthorityHistory = BorshDeserialize::deserialize(&mut data.as_ref())?;
+
+        let response = AuthorityHistoryResponse {
+            entries: history
+                .entries
+                .into_iter()
+                .map(|entry| HistoryEntry {
+                    admin: entry.admin.to_string(),
+                    authority: entry.authority.to_string(),
+                    added: entry.added,
+                    is_read: entry.is_read,
+                    timestamp: entry.timestamp,
+                })
+                .collect(),
+        };
+
+        log::info!("Authority history fetched with {} entries", response.entries.len());
+        Ok(response)
+    }
+
+    pub async fn get_patient_addresses(&self, _user_pubkey: &str) -> Result<PatientAddressesResponse, AppError> {
+        log::info!("Fetching all patient addresses for user: {}", _user_pubkey);
+        let config = RpcProgramAccountsConfig {
+            filters: Some(vec![
+                RpcFilterType::Memcmp(
+                    Memcmp::new(
+                        0, // offset
+                        solana_client::rpc_filter::MemcmpEncodedBytes::Base58(
+                            bs58::encode(&[118, 127, 39, 235, 201, 189, 0, 109]).into_string()
+                        ),
+                    )
+                ),
+            ]),
+            account_config: RpcAccountInfoConfig {
+                encoding: Some(UiAccountEncoding::Base64),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+    
+        let accounts = self.client
+            .get_program_accounts_with_config(&self.program_id, config)
+            .await?;
+    
+        let patient_addresses = accounts
+            .into_iter()
+            .map(|(pubkey, _account)| pubkey.to_string())
+            .collect();
+    
+        let response = PatientAddressesResponse {
+            patient_addresses,
+        };
+    
+        log::info!("Fetched {} patient addresses", response.patient_addresses.len());
+        Ok(response)
     }
 
     async fn get_latest_blockhash_with_retry(
