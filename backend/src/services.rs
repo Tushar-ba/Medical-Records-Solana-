@@ -279,37 +279,35 @@ impl TransactionService {
     pub async fn submit_transaction(&self, serialized_transaction: &str) -> Result<String, AppError> {
         log::info!("Submitting transaction: {}", serialized_transaction);
         let transaction_bytes = STANDARD.decode(serialized_transaction)?;
-        let mut transaction: Transaction = bincode::deserialize(&transaction_bytes)?;
-        let recent_blockhash = self.get_latest_blockhash_with_retry(5, Duration::from_secs(5)).await?;
-        transaction.message.recent_blockhash = recent_blockhash;
-        let user_pubkey = transaction.message.account_keys[0];
-        let mut user_signature = None;
-        for (i, sig) in transaction.signatures.iter().enumerate() {
-            let pubkey = transaction.message.account_keys[i];
-            if pubkey == user_pubkey && sig != &solana_sdk::signature::Signature::default() {
-                user_signature = Some(*sig);
-                break;
+        let transaction: Transaction = bincode::deserialize(&transaction_bytes)?;
+    
+        // Log transaction details for debugging
+        log::info!("Fee Payer: {}", transaction.message.header.num_required_signatures);
+        log::info!("Account Keys: {:?}", transaction.message.account_keys);
+        log::info!("Signatures: {:?}", transaction.signatures);
+        log::info!("Instruction Accounts: {:?}", transaction.message.instructions[0].accounts);
+    
+        // Verify that all required signatures are present
+        let required_signers: Vec<Pubkey> = transaction
+            .message
+            .account_keys
+            .iter()
+            .enumerate()
+            .filter(|&(i, _)| transaction.message.is_signer(i))
+            .map(|(_, &key)| key)
+            .collect();
+    
+        for (i, signer) in required_signers.iter().enumerate() {
+            let signature = &transaction.signatures[i];
+            if signature == &solana_sdk::signature::Signature::default() {
+                return Err(AppError::BadRequest(format!(
+                    "Missing signature for required signer: {}",
+                    signer
+                )));
             }
         }
-        transaction.signatures = transaction.message.account_keys.iter().map(|pubkey| {
-            if *pubkey == user_pubkey {
-                solana_sdk::signature::Signature::default()
-            } else {
-                solana_sdk::signature::Signature::default()
-            }
-        }).collect();
-        transaction.partial_sign(&[&self.admin_keypair], recent_blockhash);
-        if let Some(sig) = user_signature {
-            for (i, signature) in transaction.signatures.iter_mut().enumerate() {
-                let pubkey = transaction.message.account_keys[i];
-                if pubkey == user_pubkey {
-                    *signature = sig;
-                    break;
-                }
-            }
-        } else {
-            return Err(AppError::BadRequest("User signature not found".to_string()));
-        }
+    
+        // Submit the transaction as-is
         let signature = self.client.send_and_confirm_transaction(&transaction).await?;
         log::info!("Transaction submitted with signature: {}", signature);
         Ok(signature.to_string())
