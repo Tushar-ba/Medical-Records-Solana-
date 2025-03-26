@@ -2,7 +2,7 @@ use actix_web::{http::StatusCode, HttpResponse, ResponseError};
 use serde_json::Error as SerdeError;
 use solana_client::client_error::ClientError;
 use solana_sdk::pubkey::ParsePubkeyError;
-use std::array::TryFromSliceError; // Corrected import
+use std::array::TryFromSliceError;
 use std::io::Error as IoError;
 
 #[derive(Debug)]

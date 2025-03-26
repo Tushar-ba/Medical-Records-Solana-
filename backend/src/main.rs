@@ -29,14 +29,14 @@ async fn main() -> std::io::Result<()> {
         solana_sdk::signature::Keypair::from_bytes(&bytes).expect("Failed to create Keypair from bytes")
     };
 
-    let app_state = web::Data::new(app_state::AppState {
-        solana_service: services::TransactionService::new(&rpc_url, admin_keypair, &program_id)
+    let app_state = web::Data::new(app_state::AppState::new(
+        services::TransactionService::new(&rpc_url, admin_keypair, &program_id)
             .expect("Failed to create TransactionService"),
-        jwt_config: models::JwtConfig {
+        models::JwtConfig {
             secret: jwt_secret,
             expires_in: jwt_expires_in,
         },
-    });
+    ));
 
     log::info!("Server running on http://127.0.0.1:8080");
 
@@ -54,9 +54,15 @@ async fn main() -> std::io::Result<()> {
                             .route("/prepare/add-write-authority", web::post().to(controllers::prepare_add_write_authority))
                             .route("/prepare/remove-write-authority", web::post().to(controllers::prepare_remove_write_authority))
                             .route("/prepare/create-patient", web::post().to(controllers::prepare_create_patient))
-                            .route("/prepare/update-patient", web::post().to(controllers::prepare_update_patient)) // Added this line
+                            .route("/prepare/update-patient", web::post().to(controllers::prepare_update_patient))
                             .route("/submit", web::post().to(controllers::submit_transaction))
                             .route("/authorities", web::get().to(controllers::get_authorities)),
+                    )
+                    .service(
+                        web::scope("")
+                            .wrap(middleware::jwt::jwt_middleware())
+                            .route("/patient/{patient_seed}", web::get().to(controllers::get_patient))
+                            .route("/view_patient/{token}", web::get().to(controllers::view_patient)),
                     ),
             )
             .wrap(actix_web::middleware::Logger::default())

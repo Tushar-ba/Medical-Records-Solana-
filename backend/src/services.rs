@@ -7,20 +7,22 @@ use solana_sdk::{
     transaction::Transaction,
 };
 use std::str::FromStr;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use tokio::time::sleep;
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use bincode;
-use borsh::BorshDeserialize;
+use borsh::{BorshDeserialize, BorshSerialize};
+use crate::app_state::AppState;
 use crate::error::AppError;
-use crate::models::{AddReadAuthorityRequest, RemoveReadAuthorityRequest, AddWriteAuthorityRequest, RemoveWriteAuthorityRequest, PreparedTransaction, AuthoritiesResponse, CreatePatientRequest, PreparedPatientTransaction, UpdatePatientRequest, PreparedUpdatePatientTransaction};
+use crate::models::{AddReadAuthorityRequest, RemoveReadAuthorityRequest, AddWriteAuthorityRequest, RemoveWriteAuthorityRequest, PreparedTransaction, AuthoritiesResponse, CreatePatientRequest, PreparedPatientTransaction, UpdatePatientRequest, PreparedUpdatePatientTransaction, GetPatientResponse};
 use crate::utils;
 use rand::Rng;
 use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce, Key
 };
+use uuid::Uuid;
 
 pub struct TransactionService {
     client: RpcClient,
@@ -50,20 +52,14 @@ impl TransactionService {
 
     pub async fn prepare_create_patient(&self, req: &CreatePatientRequest) -> Result<PreparedPatientTransaction, AppError> {
         log::info!("Preparing create_patient transaction for user: {}", req.user_pubkey);
-
-        let user_pubkey = Pubkey::from_str(&req.user_pubkey)
-            .map_err(|e| AppError::BadRequest(format!("Invalid user public key: {}", e)))?;
-
+        let user_pubkey = Pubkey::from_str(&req.user_pubkey)?;
         let patient_seed = Keypair::new();
         let patient_seed_pubkey = patient_seed.pubkey();
-
         let (patient_pda, _bump) = Pubkey::find_program_address(
             &[b"patient", user_pubkey.as_ref(), patient_seed_pubkey.as_ref()],
             &self.program_id,
         );
-
         let (admin_pda, _bump) = Pubkey::find_program_address(&[b"admin"], &self.program_id);
-
         let nonce_bytes = rand::thread_rng().gen::<[u8; 12]>();
         let nonce = Nonce::from_slice(&nonce_bytes);
         let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&self.encryption_key));
@@ -72,15 +68,12 @@ impl TransactionService {
         let encrypted_data_base64 = STANDARD.encode(&encrypted_data);
         let nonce_base64 = STANDARD.encode(&nonce_bytes);
         let encrypted_string = format!("{}|{}", encrypted_data_base64, nonce_base64);
-
-        let discriminator = [176, 85, 210, 156, 179, 74, 60, 203]; // From IDL
-
+        let discriminator = [176, 85, 210, 156, 179, 74, 60, 203];
         let encrypted_data_bytes = encrypted_string.as_bytes();
         let mut instruction_data = Vec::with_capacity(8 + 4 + encrypted_data_bytes.len());
         instruction_data.extend_from_slice(&discriminator);
         instruction_data.extend_from_slice(&(encrypted_data_bytes.len() as u32).to_le_bytes());
         instruction_data.extend_from_slice(encrypted_data_bytes);
-
         let instruction = Instruction {
             program_id: self.program_id,
             accounts: vec![
@@ -92,14 +85,11 @@ impl TransactionService {
             ],
             data: instruction_data,
         };
-
         let recent_blockhash = self.get_latest_blockhash_with_retry(5, Duration::from_secs(5)).await?;
         let mut transaction = Transaction::new_with_payer(&[instruction], Some(&user_pubkey));
         transaction.message.recent_blockhash = recent_blockhash;
-
         let serialized_transaction = utils::serialize_transaction(&transaction)?;
         let encrypted_data_with_seed = format!("{}|{}", encrypted_string, patient_seed_pubkey.to_string());
-
         Ok(PreparedPatientTransaction {
             serialized_transaction,
             transaction_type: "create_patient".to_string(),
@@ -109,19 +99,13 @@ impl TransactionService {
 
     pub async fn prepare_update_patient(&self, req: &UpdatePatientRequest) -> Result<PreparedUpdatePatientTransaction, AppError> {
         log::info!("Preparing update_patient transaction for user: {}", req.user_pubkey);
-
-        let user_pubkey = Pubkey::from_str(&req.user_pubkey)
-            .map_err(|e| AppError::BadRequest(format!("Invalid user public key: {}", e)))?;
-        let patient_seed_pubkey = Pubkey::from_str(&req.patient_seed)
-            .map_err(|e| AppError::BadRequest(format!("Invalid patient seed: {}", e)))?;
-
+        let user_pubkey = Pubkey::from_str(&req.user_pubkey)?;
+        let patient_seed_pubkey = Pubkey::from_str(&req.patient_seed)?;
         let (patient_pda, _bump) = Pubkey::find_program_address(
             &[b"patient", user_pubkey.as_ref(), patient_seed_pubkey.as_ref()],
             &self.program_id,
         );
-
         let (admin_pda, _bump) = Pubkey::find_program_address(&[b"admin"], &self.program_id);
-
         let nonce_bytes = rand::thread_rng().gen::<[u8; 12]>();
         let nonce = Nonce::from_slice(&nonce_bytes);
         let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&self.encryption_key));
@@ -130,15 +114,12 @@ impl TransactionService {
         let encrypted_data_base64 = STANDARD.encode(&encrypted_data);
         let nonce_base64 = STANDARD.encode(&nonce_bytes);
         let encrypted_string = format!("{}|{}", encrypted_data_base64, nonce_base64);
-
-        let discriminator = [112, 151, 255, 60, 59, 88, 232, 154]; // From IDL for update_patient
-
+        let discriminator = [112, 151, 255, 60, 59, 88, 232, 154];
         let encrypted_data_bytes = encrypted_string.as_bytes();
         let mut instruction_data = Vec::with_capacity(8 + 4 + encrypted_data_bytes.len());
         instruction_data.extend_from_slice(&discriminator);
         instruction_data.extend_from_slice(&(encrypted_data_bytes.len() as u32).to_le_bytes());
         instruction_data.extend_from_slice(encrypted_data_bytes);
-
         let instruction = Instruction {
             program_id: self.program_id,
             accounts: vec![
@@ -150,14 +131,11 @@ impl TransactionService {
             ],
             data: instruction_data,
         };
-
         let recent_blockhash = self.get_latest_blockhash_with_retry(5, Duration::from_secs(5)).await?;
         let mut transaction = Transaction::new_with_payer(&[instruction], Some(&user_pubkey));
         transaction.message.recent_blockhash = recent_blockhash;
-
         let serialized_transaction = utils::serialize_transaction(&transaction)?;
         let encrypted_data_with_seed = format!("{}|{}", encrypted_string, patient_seed_pubkey.to_string());
-
         Ok(PreparedUpdatePatientTransaction {
             serialized_transaction,
             transaction_type: "update_patient".to_string(),
@@ -165,7 +143,6 @@ impl TransactionService {
         })
     }
 
-    // Other methods remain unchanged (omitted for brevity)
     pub async fn prepare_add_read_authority(&self, req: &AddReadAuthorityRequest) -> Result<PreparedTransaction, AppError> {
         log::info!("Preparing add_read_authority transaction for new authority: {}", req.new_authority);
         let user_pubkey = Pubkey::from_str(&req.user_pubkey)?;
@@ -353,10 +330,113 @@ impl TransactionService {
         Ok(response)
     }
 
+    pub async fn get_patient(&self, patient_seed: &str, user_pubkey: &str, app_state: &AppState) -> Result<GetPatientResponse, AppError> {
+        log::info!("Fetching patient data for seed: {}", patient_seed);
+
+        let user_pubkey = Pubkey::from_str(user_pubkey)?;
+        let patient_seed_pubkey = Pubkey::from_str(patient_seed)?;
+        let (patient_pda, _bump) = Pubkey::find_program_address(
+            &[b"patient", user_pubkey.as_ref(), patient_seed_pubkey.as_ref()],
+            &self.program_id,
+        );
+        let (_admin_pda, _bump) = Pubkey::find_program_address(&[b"admin"], &self.program_id); // Prefixed with underscore
+
+        let account_info = self.client.get_account(&patient_pda).await?;
+        if account_info.owner != self.program_id {
+            return Err(AppError::BadRequest("Patient account not owned by program".to_string()));
+        }
+
+        #[derive(BorshDeserialize)]
+        struct PatientAccount {
+            patient_address: Pubkey,
+            is_initialized: bool,
+            encrypted_data: String,
+            data_hash: [u8; 32],
+        }
+
+        let data = &account_info.data[8..];
+        let patient: PatientAccount = BorshDeserialize::deserialize(&mut data.as_ref())?;
+
+        if !patient.is_initialized {
+            return Err(AppError::BadRequest("Patient record not initialized".to_string()));
+        }
+
+        // Generate unique token and set expiration (1 hour)
+        let token = Uuid::new_v4().to_string();
+        let expiration = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() + 3600; // 1 hour from now
+        app_state.token_store.insert(token.clone(), (patient_seed.to_string(), expiration));
+
+        // Construct the URL
+        let view_url = format!("http://localhost:8080/api/view_patient/{}", token);
+
+        Ok(GetPatientResponse { view_url })
+    }
+
+    pub async fn view_patient(&self, token: &str, app_state: &AppState) -> Result<String, AppError> {
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        let entry = app_state.token_store.get(token).ok_or_else(|| {
+            AppError::Unauthorized("Invalid or expired token".to_string())
+        })?;
+
+        let (patient_seed, expiration) = entry.value();
+        if now > *expiration {
+            app_state.token_store.remove(token);
+            return Err(AppError::Unauthorized("Token expired".to_string()));
+        }
+
+        let patient_seed_pubkey = Pubkey::from_str(patient_seed)?;
+        let (admin_pda, _bump) = Pubkey::find_program_address(&[b"admin"], &self.program_id);
+        let account_info = self.client.get_account(&admin_pda).await?;
+        let admin_data = &account_info.data[8..];
+        #[derive(BorshDeserialize)]
+        struct AdminAccount {
+            authority: Pubkey,
+            read_authorities: Vec<Pubkey>,
+            write_authorities: Vec<Pubkey>,
+        }
+        let admin: AdminAccount = BorshDeserialize::deserialize(&mut admin_data.as_ref())?;
+        let (patient_pda, _bump) = Pubkey::find_program_address(
+            &[b"patient", admin.authority.as_ref(), patient_seed_pubkey.as_ref()],
+            &self.program_id,
+        );
+
+        let patient_account_info = self.client.get_account(&patient_pda).await?;
+        let patient_data = &patient_account_info.data[8..];
+        #[derive(BorshDeserialize)]
+        struct PatientAccount {
+            patient_address: Pubkey,
+            is_initialized: bool,
+            encrypted_data: String,
+            data_hash: [u8; 32],
+        }
+        let patient: PatientAccount = BorshDeserialize::deserialize(&mut patient_data.as_ref())?;
+
+        // Decrypt the data
+        let parts: Vec<&str> = patient.encrypted_data.split('|').collect();
+        if parts.len() != 2 {
+            return Err(AppError::InternalServerError("Invalid encrypted data format".to_string()));
+        }
+        let encrypted_data = STANDARD.decode(parts[0])?;
+        let nonce = STANDARD.decode(parts[1])?;
+        let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&self.encryption_key));
+        let nonce = Nonce::from_slice(&nonce);
+        let decrypted_data = cipher.decrypt(nonce, encrypted_data.as_ref())
+            .map_err(|e| AppError::InternalServerError(format!("Decryption failed: {}", e)))?;
+
+        Ok(String::from_utf8(decrypted_data).unwrap_or_else(|_| "Decrypted data not UTF-8".to_string()))
+    }
+
     async fn get_latest_blockhash_with_retry(
         &self,
         retries: u32,
-        delay: std::time::Duration,
+        delay: Duration,
     ) -> Result<solana_sdk::hash::Hash, AppError> {
         for attempt in 1..=retries {
             match self.client.get_latest_blockhash().await {

@@ -5,7 +5,7 @@ use bs58;
 use crate::app_state::AppState;
 use crate::error::AppError;
 use crate::middleware::jwt::generate_jwt;
-use crate::models::{AuthRequest, AuthResponse, AddReadAuthorityRequest, RemoveReadAuthorityRequest, AddWriteAuthorityRequest, RemoveWriteAuthorityRequest, SubmitTransactionRequest, SubmitTransactionResponse, CreatePatientRequest, PreparedPatientTransaction, UpdatePatientRequest, PreparedUpdatePatientTransaction};
+use crate::models::{AuthRequest, AuthResponse, AddReadAuthorityRequest, RemoveReadAuthorityRequest, AddWriteAuthorityRequest, RemoveWriteAuthorityRequest, SubmitTransactionRequest, SubmitTransactionResponse, CreatePatientRequest, PreparedPatientTransaction, UpdatePatientRequest, PreparedUpdatePatientTransaction, GetPatientResponse};
 
 pub async fn authenticate(
     req: web::Json<AuthRequest>,
@@ -139,4 +139,28 @@ pub async fn get_authorities(
     info!("Received get_authorities request");
     let authorities = data.solana_service.get_authorities().await?;
     Ok(HttpResponse::Ok().json(authorities))
+}
+
+pub async fn get_patient(
+    path: web::Path<String>,
+    data: web::Data<AppState>,
+    req_data: web::ReqData<String>,
+) -> Result<HttpResponse, AppError> {
+    let patient_seed = path.into_inner();
+    let user_pubkey = req_data.into_inner();
+    info!("Received get_patient request for seed: {}", patient_seed);
+    let response = data.solana_service.get_patient(&patient_seed, &user_pubkey, &data).await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn view_patient(
+    path: web::Path<String>,
+    data: web::Data<AppState>,
+    req_data: web::ReqData<String>,
+) -> Result<HttpResponse, AppError> {
+    let token = path.into_inner();
+    let _user_pubkey = req_data.into_inner(); // JWT already verified
+    info!("Received view_patient request for token: {}", token);
+    let decrypted_data = data.solana_service.view_patient(&token, &data).await?;
+    Ok(HttpResponse::Ok().body(decrypted_data))
 }

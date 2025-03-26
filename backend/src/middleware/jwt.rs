@@ -47,7 +47,6 @@ pub async fn validator(
         }
     };
 
-    let req = req;
     req.extensions_mut()
         .insert(token_data.claims.sub.clone());
     Ok(req)
