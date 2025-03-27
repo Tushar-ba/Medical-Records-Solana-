@@ -341,20 +341,41 @@ impl TransactionService {
 
     pub async fn get_patient(&self, patient_seed: &str, user_pubkey: &str, app_state: &AppState) -> Result<GetPatientResponse, AppError> {
         log::info!("Fetching patient data for seed: {}", patient_seed);
-
+    
         let user_pubkey = Pubkey::from_str(user_pubkey)?;
         let patient_seed_pubkey = Pubkey::from_str(patient_seed)?;
         let (patient_pda, _bump) = Pubkey::find_program_address(
             &[b"patient", self.admin_pubkey.as_ref(), patient_seed_pubkey.as_ref()],
             &self.program_id,
         );
-        let (_admin_pda, _bump) = Pubkey::find_program_address(&[b"admin"], &self.program_id);
-
-        let account_info = self.client.get_account(&patient_pda).await?;
-        if account_info.owner != self.program_id {
+        let (admin_pda, _bump) = Pubkey::find_program_address(&[b"admin"], &self.program_id);
+    
+        // Fetch the admin account to verify read authorities
+        let admin_account_info = self.client.get_account(&admin_pda).await?;
+        if admin_account_info.owner != self.program_id {
+            return Err(AppError::BadRequest("Admin account not owned by program".to_string()));
+        }
+    
+        #[derive(BorshDeserialize)]
+        struct AdminAccount {
+            authority: Pubkey,
+            read_authorities: Vec<Pubkey>,
+            write_authorities: Vec<Pubkey>,
+        }
+        let admin_data = &admin_account_info.data[8..]; // Skip the 8-byte discriminator
+        let admin: AdminAccount = BorshDeserialize::deserialize(&mut admin_data.as_ref())?;
+    
+        // Check if the user has read authority
+        if !admin.read_authorities.contains(&user_pubkey) {
+            return Err(AppError::Unauthorized("User does not have read authority".to_string()));
+        }
+    
+        // Proceed to fetch patient data
+        let patient_account_info = self.client.get_account(&patient_pda).await?;
+        if patient_account_info.owner != self.program_id {
             return Err(AppError::BadRequest("Patient account not owned by program".to_string()));
         }
-
+    
         #[derive(BorshDeserialize)]
         struct PatientAccount {
             patient_address: Pubkey,
@@ -362,23 +383,23 @@ impl TransactionService {
             encrypted_data: String,
             data_hash: [u8; 32],
         }
-
-        let data = &account_info.data[8..];
-        let patient: PatientAccount = BorshDeserialize::deserialize(&mut data.as_ref())?;
-
+        let patient_data = &patient_account_info.data[8..];
+        let patient: PatientAccount = BorshDeserialize::deserialize(&mut patient_data.as_ref())?;
+    
         if !patient.is_initialized {
             return Err(AppError::BadRequest("Patient record not initialized".to_string()));
         }
-
+    
+        // Generate a temporary token
         let token = Uuid::new_v4().to_string();
         let expiration = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
-            .as_secs() + 3600;
+            .as_secs() + 3600; // 1-hour expiration
         app_state.token_store.insert(token.clone(), (patient_seed.to_string(), expiration));
-
+    
         let view_url = format!("http://localhost:8080/api/view_patient/{}", token);
-
+    
         Ok(GetPatientResponse { view_url })
     }
 
