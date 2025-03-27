@@ -1,0 +1,55 @@
+asta@Asta:/mnt/d/SoluLabs/medical-record-solana$ grep -r "partial_sign" .
+grep -r "AccountMeta::new" .
+./backend/src/services.rs:        transaction.partial_sign(&[&self.admin_keypair], recent_blockhash);
+./backend/src/services.rs:        transaction.partial_sign(&[&self.admin_keypair], recent_blockhash);
+./backend/src/services.rs:        transaction.partial_sign(&[&self.admin_keypair], recent_blockhash);
+./backend/src/services.rs:        transaction.partial_sign(&[&self.admin_keypair], recent_blockhash);
+grep: ./target/debug/backend: binary file matches
+grep: ./target/debug/deps/backend-6339df68b93edb7e: binary file matches
+grep: ./target/debug/deps/libbackend-ce83e7fff33f3e05.rlib: binary file matches
+grep: ./target/debug/deps/libsolana_system_transaction-ce64ba8f96b8da7c.rlib: binary file matches
+grep: ./target/debug/deps/libsolana_transaction-16a27a8845b8d201.rlib: binary file matches
+grep: ./target/debug/deps/libsolana_transaction-16a27a8845b8d201.rmeta: binary file matches
+grep: ./target/debug/incremental/backend-2x6tnvma6yz7t/s-h5ubidv9tz-0gtr5jr-1snyldx8x5wwjnb2dj0sa5z27/35cpbybixop3bp8pm7c20cz2r.o: binary file matches
+grep: ./target/debug/incremental/backend-2x6tnvma6yz7t/s-h5ubidv9tz-0gtr5jr-1snyldx8x5wwjnb2dj0sa5z27/803kdg0ydoksai55sekqj3fr9.o: binary file matches
+grep: ./target/debug/incremental/backend-2x6tnvma6yz7t/s-h5ubidv9tz-0gtr5jr-1snyldx8x5wwjnb2dj0sa5z27/query-cache.bin: binary file matches
+grep: ./target/debug/incremental/backend-3cl1jdawnlsaq/s-h5ubigvxry-0y6qcjf-ehzy574nbcdpp23wyaau29r25/0yjvsqnipyjoy2gfbw4236tva.o: binary file matches
+grep: ./target/debug/incremental/backend-3cl1jdawnlsaq/s-h5ubigvxry-0y6qcjf-ehzy574nbcdpp23wyaau29r25/47c8rtdqvo5hv8dbl5c9c8sj8.o: binary file matches
+grep: ./target/debug/incremental/backend-3cl1jdawnlsaq/s-h5ubigvxry-0y6qcjf-ehzy574nbcdpp23wyaau29r25/query-cache.bin: binary file matches
+grep: ./target/debug/libbackend.rlib: binary file matches
+./backend/src/services.rs:                AccountMeta::new(patient_pda, false),
+./backend/src/services.rs:                AccountMeta::new_readonly(patient_seed_pubkey, false),
+./backend/src/services.rs:                AccountMeta::new_readonly(user_pubkey, true), // User is the only signer
+./backend/src/services.rs:                AccountMeta::new_readonly(admin_pda, false),
+./backend/src/services.rs:                AccountMeta::new_readonly(system_program::id(), false),
+./backend/src/services.rs:                AccountMeta::new(patient_pda, false),
+./backend/src/services.rs:                AccountMeta::new_readonly(patient_seed_pubkey, false),
+./backend/src/services.rs:                AccountMeta::new_readonly(user_pubkey, true), // User is the only signer
+./backend/src/services.rs:                AccountMeta::new_readonly(admin_pda, false),
+./backend/src/services.rs:                AccountMeta::new_readonly(system_program::id(), false),
+./backend/src/services.rs:                AccountMeta::new(self.admin_pubkey, true),
+./backend/src/services.rs:                AccountMeta::new(admin_pda, false),
+./backend/src/services.rs:                AccountMeta::new(history_pda, false),
+./backend/src/services.rs:                AccountMeta::new_readonly(system_program::id(), false),
+./backend/src/services.rs:                AccountMeta::new(self.admin_pubkey, true),
+./backend/src/services.rs:                AccountMeta::new(admin_pda, false),
+./backend/src/services.rs:                AccountMeta::new(history_pda, false),
+./backend/src/services.rs:                AccountMeta::new_readonly(system_program::id(), false),
+./backend/src/services.rs:                AccountMeta::new(self.admin_pubkey, true),
+./backend/src/services.rs:                AccountMeta::new(admin_pda, false),
+./backend/src/services.rs:                AccountMeta::new(history_pda, false),
+./backend/src/services.rs:                AccountMeta::new_readonly(system_program::id(), false),
+./backend/src/services.rs:                AccountMeta::new(self.admin_pubkey, true),
+./backend/src/services.rs:                AccountMeta::new(admin_pda, false),
+./backend/src/services.rs:                AccountMeta::new(history_pda, false),
+./backend/src/services.rs:                AccountMeta::new_readonly(system_program::id(), false),
+grep: ./target/debug/deps/libsolana_instruction-2087b5dece5b236b.rlib: binary file matches
+grep: ./target/debug/deps/libsolana_instruction-2087b5dece5b236b.rmeta: binary file matches
+grep: ./target/debug/deps/libsolana_message-a0b6d587ff200f39.rlib: binary file matches
+grep: ./target/debug/deps/libsolana_message-a0b6d587ff200f39.rmeta: binary file matches
+grep: ./target/debug/deps/libsolana_pubkey-1e7ac8f2dd955b18.rlib: binary file matches
+grep: ./target/debug/deps/libsolana_pubkey-1e7ac8f2dd955b18.rmeta: binary file matches
+grep: ./target/debug/deps/libsolana_secp256k1_program-7bd0162b0a6fbeae.rlib: binary file matches
+grep: ./target/debug/deps/libsolana_secp256k1_program-7bd0162b0a6fbeae.rmeta: binary file matches
+grep: ./target/debug/deps/libspl_tlv_account_resolution-0ac9c2bbf9452611.rlib: binary file matches
+asta@Asta:/mnt/d/SoluLabs/medical-record-solana$ 

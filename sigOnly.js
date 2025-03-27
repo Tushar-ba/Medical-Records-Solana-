@@ -1,25 +1,20 @@
 const { Connection, Keypair, Transaction } = require('@solana/web3.js');
 
-// The serialized transaction from the backend
-const serializedTransaction = "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAQG+t0rZ/m2aG8+M6Llre9p4jc3v/AeM2Q+iT5ivckQtUfGMdxhfsieIe4kke3u/QGXgiiBQBnkC+W115sJKlhKEQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaqa8a/wTASq+n4GGMyHsVrpmQYNrjXlZQEOSuIlxGvGBVb2oZTpWaxStUe+f2ZGz+XRyIjGUqeklrIPl+NC1Ov9yv89DIe/D9v/+Ie6+9naktkSMZ6mqO0zcODZ3nD1EMf8VpB4+54ps+8P4pZ/heLTDPHPmunWTWOI7Mxj5a3EBBQUBBAADAvkBsFXSnLNKPMvtAAAAcGRPRllmbXpVajdZNGdWVEpLUkNnaXVHV1pBZ2NHckxkNXl4RThkTzE4Z0tLK1lnTkg0QVlHZWdCS28ybXFhcEVPWGdCTXZ0SEtTV3VMTFlwYWtSYm9LU285ZGdPWGlnVDhRcHJYMFEvdUlpYm1zYUg0V2Z5V3Fsc3N4S0JlWnNFWUxucmc2QjR2VFJWSGdQK0puT3ZPZVlRQkZaYW5Ta0J1YXoxRDRkYU9nOUxpT3Yrb05uQjVMdGpTOEJPYk9zRnFNNHNZdlAxTldWRjEzcDdtbUplOWZyR1MwPXxORWVFZ2FoZ2J1VmhRWm9j";
+// The serialized transaction from the backend (update this with the new output after fixing the backend)
+const serializedTransaction = "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAQG6fWhQa5Pj0YO8v6xqrYD7iBC/Y+qtyR319sTolpWAdQNqnVFVe3NEqL5BXbEQ43Xkbc0rLCL6Y9k3pqJCFwQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaqa8a/wTASq+n4GGMyHsVrpmQYNrjXlZQEOSuIlxGvF3s5VZxf/s+0iher9tj8zB/QPphW1q6wrOtM6RVRaLh/9yv89DIe/D9v/+Ie6+9naktkSMZ6mqO0zcODZ3nD1EDWEViMS2mtlxV2Ryj81lgcbir8mpEi8IbKRBXmQBO74BBQUBBAADApUBcJf/PDtY6JqJAAAAMXJlYXRFdnp3MEhmbEVhSUd4cXFYWnJhSk1kQTVjcFZKalFjNVBEbi9GanI3dmFpb2VnQW5Bd2tiRVltVFRDOWxvWUhPenZDMkN3cnV2aGszR2syWU84cXBvTE1rQkxQOXhEaWRGOHpVWUk3NFRpREduRjNnWHM9fENvTDN4TWhpZTJtNmxMVmo=";
 
-// Your private key as a byte array (also the admin keypair)
-const privateKeyBytes = Uint8Array.from([
-    136, 87, 238, 120, 158, 176, 198, 253, 22, 69, 120, 173, 78, 54, 41, 198,
-    32, 246, 56, 157, 165, 115, 168, 235, 89, 159, 83, 221, 128, 226, 248, 102,
-    250, 221, 43, 103, 249, 182, 104, 111, 62, 51, 162, 229, 173, 239, 105, 226,
-    55, 55, 191, 240, 30, 51, 100, 62, 137, 62, 98, 189, 201, 16, 181, 71
-]);
+// User keypair (GkHELS6i7BZefYckfmWdxPH6id2rywimHxG1Vf8XBUMq)
+const privateKeyBytes = Uint8Array.from([82, 28, 221, 12, 243, 121, 128, 239, 117, 11, 62, 191, 5, 76, 17, 47, 243, 244, 75, 102, 96, 0, 124, 231, 148, 176, 190, 82, 57, 180, 200, 108, 233, 245, 161, 65, 174, 79, 143, 70, 14, 242, 254, 177, 170, 182, 3, 238, 32, 66, 253, 143, 170, 183, 36, 119, 215, 219, 19, 162, 90, 86, 1, 212]);
 
 // Set up the connection to Solana Devnet
 const connection = new Connection("https://api.devnet.solana.com", { commitment: "confirmed" });
 console.log("Connected to Solana Devnet");
 
-// Convert your private key to a Keypair
+// Convert private key to Keypair
 let keypair;
 try {
     keypair = Keypair.fromSecretKey(privateKeyBytes);
-    console.log('Your Public Key (User and Admin):', keypair.publicKey.toBase58());
+    console.log('User Public Key:', keypair.publicKey.toBase58());
 } catch (error) {
     console.error('Error creating Keypair from private key:', error);
     process.exit(1);
@@ -27,10 +22,15 @@ try {
 
 // Check wallet balance
 async function checkBalance() {
-    const balance = await connection.getBalance(keypair.publicKey);
-    console.log('Wallet Balance:', balance / 1_000_000_000, 'SOL');
-    if (balance < 1_000_000) { // 0.001 SOL minimum for fees
-        console.error('Insufficient funds in wallet. Please fund the wallet with at least 0.001 SOL.');
+    try {
+        const balance = await connection.getBalance(keypair.publicKey);
+        console.log('Wallet Balance:', balance / 1_000_000_000, 'SOL');
+        if (balance < 1_000_000) {
+            console.error('Insufficient funds in wallet. Please fund the wallet with at least 0.001 SOL.');
+            process.exit(1);
+        }
+    } catch (error) {
+        console.error('Error checking balance:', error);
         process.exit(1);
     }
 }
@@ -50,14 +50,35 @@ async function signTransaction() {
 
     // Fetch a fresh blockhash
     console.log('Fetching latest blockhash...');
-    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash({ commitment: 'confirmed' });
-    transaction.recentBlockhash = blockhash;
-    console.log('Updated Blockhash:', blockhash);
+    let blockhash;
+    try {
+        const latestBlockhash = await connection.getLatestBlockhash({ commitment: 'confirmed' });
+        blockhash = latestBlockhash.blockhash;
+        console.log('Updated Blockhash:', blockhash);
+    } catch (error) {
+        console.error('Error fetching latest blockhash:', error);
+        process.exit(1);
+    }
+
+    // Reconstruct the transaction
+    const newTransaction = new Transaction({
+        recentBlockhash: blockhash,
+        feePayer: keypair.publicKey,
+    });
+    newTransaction.add(...transaction.instructions);
+
+    // Inspect required signers
+    console.log('Required Signers (before signing):');
+    const message = newTransaction.compileMessage();
+    const signers = message.accountKeys
+        .filter((_, i) => message.isAccountSigner(i))
+        .map(key => key.toBase58());
+    console.log(signers);
 
     // Sign the transaction
     console.log('Signing transaction...');
     try {
-        transaction.sign(keypair); // Sign with the keypair (user and admin)
+        newTransaction.sign(keypair);
         console.log('Transaction signed successfully');
     } catch (error) {
         console.error('Error signing transaction:', error);
@@ -66,7 +87,7 @@ async function signTransaction() {
 
     // Log signatures
     console.log('Required Signers (after signing):');
-    transaction.signatures.forEach((sig, i) => {
+    newTransaction.signatures.forEach((sig, i) => {
         const pubKey = sig.publicKey.toBase58();
         const isSigned = sig.signature !== null;
         console.log(`  ${i}: ${pubKey} - ${isSigned ? 'Signed' : 'Not Signed'}`);
@@ -75,9 +96,8 @@ async function signTransaction() {
     // Serialize the signed transaction
     let signedSerializedTransaction;
     try {
-        signedSerializedTransaction = Buffer.from(transaction.serialize()).toString('base64');
-        console.log('Signed Serialized Transaction (Base64):');
-        console.log(signedSerializedTransaction);
+        signedSerializedTransaction = Buffer.from(newTransaction.serialize()).toString('base64');
+        console.log('Signed Serialized Transaction (Base64):', signedSerializedTransaction);
     } catch (error) {
         console.error('Error serializing signed transaction:', error);
         process.exit(1);
@@ -86,20 +106,36 @@ async function signTransaction() {
     return signedSerializedTransaction;
 }
 
-// Main function to execute the steps
+// Submit the signed transaction
+async function submitTransaction(signedTx) {
+    console.log('Submitting transaction to backend...');
+    try {
+        const response = await fetch('http://127.0.0.1:8080/api/transactions/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ serialized_transaction: signedTx }),
+        });
+        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+        const result = await response.json();
+        console.log('Transaction submission result:', result);
+        return result;
+    } catch (error) {
+        console.error('Error submitting transaction:', error);
+        process.exit(1);
+    }
+}
+
+// Main function
 async function main() {
     await checkBalance();
     const signedTx = await signTransaction();
-    return { signedTx };
+    const result = await submitTransaction(signedTx);
+    console.log('Final result:', result);
 }
 
 // Run the script
 main()
-    .then(result => {
-        console.log('Signed transaction ready to submit:', result.signedTx);
-        console.log('Send this to http://127.0.0.1:8080/api/transactions/submit in the following JSON format:');
-        console.log(JSON.stringify({ serialized_transaction: result.signedTx }, null, 2));
-    })
+    .then(() => console.log('Script completed successfully.'))
     .catch(error => {
         console.error('Error in main execution:', error);
         process.exit(1);

@@ -6,7 +6,7 @@ use solana_sdk::{
     system_program,
     transaction::Transaction,
 };
-use solana_client::rpc_filter::{RpcFilterType, Memcmp}; // Remove duplicate import
+use solana_client::rpc_filter::{RpcFilterType, Memcmp};
 use solana_account_decoder::UiAccountEncoding;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
@@ -63,8 +63,9 @@ impl TransactionService {
         let user_pubkey = Pubkey::from_str(&req.user_pubkey)?;
         let patient_seed = Keypair::new();
         let patient_seed_pubkey = patient_seed.pubkey();
+        // Use admin_pubkey instead of user_pubkey for PDA seeds, as per lib.rs
         let (patient_pda, _bump) = Pubkey::find_program_address(
-            &[b"patient", user_pubkey.as_ref(), patient_seed_pubkey.as_ref()],
+            &[b"patient", self.admin_pubkey.as_ref(), patient_seed_pubkey.as_ref()],
             &self.program_id,
         );
         let (admin_pda, _bump) = Pubkey::find_program_address(&[b"admin"], &self.program_id);
@@ -76,7 +77,7 @@ impl TransactionService {
         let encrypted_data_base64 = STANDARD.encode(&encrypted_data);
         let nonce_base64 = STANDARD.encode(&nonce_bytes);
         let encrypted_string = format!("{}|{}", encrypted_data_base64, nonce_base64);
-        let discriminator = [176, 85, 210, 156, 179, 74, 60, 203];
+        let discriminator = [176, 85, 210, 156, 179, 74, 60, 203]; // create_patient discriminator
         let encrypted_data_bytes = encrypted_string.as_bytes();
         let mut instruction_data = Vec::with_capacity(8 + 4 + encrypted_data_bytes.len());
         instruction_data.extend_from_slice(&discriminator);
@@ -87,7 +88,7 @@ impl TransactionService {
             accounts: vec![
                 AccountMeta::new(patient_pda, false),
                 AccountMeta::new_readonly(patient_seed_pubkey, false),
-                AccountMeta::new_readonly(user_pubkey, true),
+                AccountMeta::new_readonly(user_pubkey, true), // User is the only signer
                 AccountMeta::new_readonly(admin_pda, false),
                 AccountMeta::new_readonly(system_program::id(), false),
             ],
@@ -110,8 +111,9 @@ impl TransactionService {
         log::info!("Preparing update_patient transaction for user: {}", req.user_pubkey);
         let user_pubkey = Pubkey::from_str(&req.user_pubkey)?;
         let patient_seed_pubkey = Pubkey::from_str(&req.patient_seed)?;
+        // Use admin_pubkey instead of user_pubkey for PDA seeds, as per lib.rs
         let (patient_pda, _bump) = Pubkey::find_program_address(
-            &[b"patient", user_pubkey.as_ref(), patient_seed_pubkey.as_ref()],
+            &[b"patient", self.admin_pubkey.as_ref(), patient_seed_pubkey.as_ref()],
             &self.program_id,
         );
         let (admin_pda, _bump) = Pubkey::find_program_address(&[b"admin"], &self.program_id);
@@ -123,7 +125,7 @@ impl TransactionService {
         let encrypted_data_base64 = STANDARD.encode(&encrypted_data);
         let nonce_base64 = STANDARD.encode(&nonce_bytes);
         let encrypted_string = format!("{}|{}", encrypted_data_base64, nonce_base64);
-        let discriminator = [112, 151, 255, 60, 59, 88, 232, 154];
+        let discriminator = [112, 151, 255, 60, 59, 88, 232, 154]; // update_patient discriminator
         let encrypted_data_bytes = encrypted_string.as_bytes();
         let mut instruction_data = Vec::with_capacity(8 + 4 + encrypted_data_bytes.len());
         instruction_data.extend_from_slice(&discriminator);
@@ -134,7 +136,7 @@ impl TransactionService {
             accounts: vec![
                 AccountMeta::new(patient_pda, false),
                 AccountMeta::new_readonly(patient_seed_pubkey, false),
-                AccountMeta::new_readonly(user_pubkey, true),
+                AccountMeta::new_readonly(user_pubkey, true), // User is the only signer
                 AccountMeta::new_readonly(admin_pda, false),
                 AccountMeta::new_readonly(system_program::id(), false),
             ],
@@ -343,7 +345,7 @@ impl TransactionService {
         let user_pubkey = Pubkey::from_str(user_pubkey)?;
         let patient_seed_pubkey = Pubkey::from_str(patient_seed)?;
         let (patient_pda, _bump) = Pubkey::find_program_address(
-            &[b"patient", user_pubkey.as_ref(), patient_seed_pubkey.as_ref()],
+            &[b"patient", self.admin_pubkey.as_ref(), patient_seed_pubkey.as_ref()],
             &self.program_id,
         );
         let (_admin_pda, _bump) = Pubkey::find_program_address(&[b"admin"], &self.program_id);
