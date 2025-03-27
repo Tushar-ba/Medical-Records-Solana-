@@ -44,17 +44,28 @@ pub struct RemoveWriteAuthorityRequest {
     pub authority_to_remove: String,
 }
 
+// New struct for patient data fields
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PatientData {
+    pub name: String,
+    pub blood_type: String,
+    pub previous_report: String,
+    pub ph_no: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file: Option<String>, // Will hold the CID from Pinata
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct CreatePatientRequest {
     pub user_pubkey: String,
-    pub patient_data: String,
+    pub patient_data: PatientData,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct UpdatePatientRequest {
     pub user_pubkey: String,
     pub patient_seed: String,
-    pub patient_data: String,
+    pub patient_data: PatientData,
 }
 
 #[derive(Serialize, Deserialize)]

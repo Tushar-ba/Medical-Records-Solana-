@@ -1,8 +1,10 @@
 use actix_web::{web, HttpResponse};
+use actix_multipart::Multipart;
+use futures_util::TryStreamExt as _;
 use log::{info, error};
 use solana_sdk::signature::Signature;
 use solana_sdk::pubkey::Pubkey;
-use std::str::FromStr; // Added import
+use std::str::FromStr;
 use bs58;
 use crate::app_state::AppState;
 use crate::error::AppError;
@@ -94,19 +96,87 @@ pub async fn prepare_remove_write_authority(
 }
 
 pub async fn prepare_create_patient(
-    req: web::Json<crate::models::CreatePatientRequest>,
+    mut payload: Multipart,
     data: web::Data<AppState>,
     req_data: web::ReqData<String>,
 ) -> Result<HttpResponse, AppError> {
     info!("Received prepare_create_patient request");
-    let user_pubkey = req_data.into_inner();
+    let user_pubkey_from_token = req_data.into_inner();
+
+    let mut user_pubkey = String::new();
+    let mut name = String::new();
+    let mut blood_type = String::new();
+    let mut previous_report = String::new();
+    let mut ph_no = String::new();
+    let mut file_data = Vec::new();
+
+    while let Some(mut field) = payload.try_next().await? {
+        match field.name() {
+            "user_pubkey" => {
+                while let Some(chunk) = field.try_next().await? {
+                    user_pubkey.push_str(&String::from_utf8_lossy(chunk.as_ref()));
+                }
+            }
+            "name" => {
+                while let Some(chunk) = field.try_next().await? {
+                    name.push_str(&String::from_utf8_lossy(chunk.as_ref()));
+                }
+            }
+            "blood_type" => {
+                while let Some(chunk) = field.try_next().await? {
+                    blood_type.push_str(&String::from_utf8_lossy(chunk.as_ref()));
+                }
+            }
+            "previous_report" => {
+                while let Some(chunk) = field.try_next().await? {
+                    previous_report.push_str(&String::from_utf8_lossy(chunk.as_ref()));
+                }
+            }
+            "ph_no" => {
+                while let Some(chunk) = field.try_next().await? {
+                    ph_no.push_str(&String::from_utf8_lossy(chunk.as_ref()));
+                }
+            }
+            "file" => {
+                while let Some(chunk) = field.try_next().await? {
+                    file_data.extend_from_slice(chunk.as_ref());
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Validate inputs
+    if user_pubkey.is_empty() {
+        user_pubkey = user_pubkey_from_token;
+    } else if user_pubkey != user_pubkey_from_token {
+        error!("User pubkey from form ({}) does not match JWT ({})", user_pubkey, user_pubkey_from_token);
+        return Err(AppError::Unauthorized("User pubkey mismatch".to_string()));
+    }
+    if name.is_empty() || blood_type.is_empty() || previous_report.is_empty() || ph_no.is_empty() {
+        error!("Missing required patient data fields");
+        return Err(AppError::BadRequest("Missing required patient data fields".to_string()));
+    }
+
+    let patient_data = crate::models::PatientData {
+        name,
+        blood_type,
+        previous_report,
+        ph_no,
+        file: None, // Will be updated with CID if file is uploaded
+    };
+
     let modified_req = crate::models::CreatePatientRequest {
         user_pubkey: user_pubkey.clone(),
-        patient_data: req.patient_data.clone(),
+        patient_data,
     };
-    let prepared_tx = data.solana_service.prepare_create_patient(&modified_req).await?;
-    
-    // Extract patient_seed and patient_pda to store in AppState
+
+    let prepared_tx = if file_data.is_empty() {
+        data.solana_service.prepare_create_patient(&modified_req, None).await?
+    } else {
+        data.solana_service.prepare_create_patient(&modified_req, Some(&file_data)).await?
+    };
+
     let parts: Vec<&str> = prepared_tx.encrypted_data_with_seed.split('|').collect();
     if parts.len() >= 3 {
         let patient_seed = parts[2].to_string();
@@ -116,23 +186,103 @@ pub async fn prepare_create_patient(
         ).0.to_string();
         data.patient_seed_map.insert(patient_pda, patient_seed);
     }
-    
+
     Ok(HttpResponse::Ok().json(prepared_tx))
 }
 
 pub async fn prepare_update_patient(
-    req: web::Json<crate::models::UpdatePatientRequest>,
+    mut payload: Multipart,
     data: web::Data<AppState>,
     req_data: web::ReqData<String>,
 ) -> Result<HttpResponse, AppError> {
     info!("Received prepare_update_patient request");
-    let user_pubkey = req_data.into_inner();
+    let user_pubkey_from_token = req_data.into_inner();
+
+    let mut user_pubkey = String::new();
+    let mut patient_seed = String::new();
+    let mut name = String::new();
+    let mut blood_type = String::new();
+    let mut previous_report = String::new();
+    let mut ph_no = String::new();
+    let mut file_data = Vec::new();
+
+    while let Some(mut field) = payload.try_next().await? {
+        match field.name() {
+            "user_pubkey" => {
+                while let Some(chunk) = field.try_next().await? {
+                    user_pubkey.push_str(&String::from_utf8_lossy(chunk.as_ref()));
+                }
+            }
+            "patient_seed" => {
+                while let Some(chunk) = field.try_next().await? {
+                    patient_seed.push_str(&String::from_utf8_lossy(chunk.as_ref()));
+                }
+            }
+            "name" => {
+                while let Some(chunk) = field.try_next().await? {
+                    name.push_str(&String::from_utf8_lossy(chunk.as_ref()));
+                }
+            }
+            "blood_type" => {
+                while let Some(chunk) = field.try_next().await? {
+                    blood_type.push_str(&String::from_utf8_lossy(chunk.as_ref()));
+                }
+            }
+            "previous_report" => {
+                while let Some(chunk) = field.try_next().await? {
+                    previous_report.push_str(&String::from_utf8_lossy(chunk.as_ref()));
+                }
+            }
+            "ph_no" => {
+                while let Some(chunk) = field.try_next().await? {
+                    ph_no.push_str(&String::from_utf8_lossy(chunk.as_ref()));
+                }
+            }
+            "file" => {
+                while let Some(chunk) = field.try_next().await? {
+                    file_data.extend_from_slice(chunk.as_ref());
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Validate inputs
+    if user_pubkey.is_empty() {
+        user_pubkey = user_pubkey_from_token;
+    } else if user_pubkey != user_pubkey_from_token {
+        error!("User pubkey from form ({}) does not match JWT ({})", user_pubkey, user_pubkey_from_token);
+        return Err(AppError::Unauthorized("User pubkey mismatch".to_string()));
+    }
+    if patient_seed.is_empty() {
+        error!("No patient_seed provided in update_patient request");
+        return Err(AppError::BadRequest("No patient_seed provided".to_string()));
+    }
+    if name.is_empty() || blood_type.is_empty() || previous_report.is_empty() || ph_no.is_empty() {
+        error!("Missing required patient data fields");
+        return Err(AppError::BadRequest("Missing required patient data fields".to_string()));
+    }
+
+    let patient_data = crate::models::PatientData {
+        name,
+        blood_type,
+        previous_report,
+        ph_no,
+        file: None, // Will be updated with CID if file is uploaded
+    };
+
     let modified_req = crate::models::UpdatePatientRequest {
         user_pubkey,
-        patient_seed: req.patient_seed.clone(),
-        patient_data: req.patient_data.clone(),
+        patient_seed,
+        patient_data,
     };
-    let prepared_tx = data.solana_service.prepare_update_patient(&modified_req).await?;
+
+    let prepared_tx = if file_data.is_empty() {
+        data.solana_service.prepare_update_patient(&modified_req, None).await?
+    } else {
+        data.solana_service.prepare_update_patient(&modified_req, Some(&file_data)).await?
+    };
+
     Ok(HttpResponse::Ok().json(prepared_tx))
 }
 
@@ -175,7 +325,7 @@ pub async fn view_patient(
     let _user_pubkey = req_data.into_inner();
     info!("Received view_patient request for token: {}", token);
     let decrypted_data = data.solana_service.view_patient(&token, &data).await?;
-    Ok(HttpResponse::Ok().body(decrypted_data))
+    Ok(HttpResponse::Ok().json(decrypted_data))
 }
 
 pub async fn get_authority_history(

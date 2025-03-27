@@ -4,6 +4,8 @@ use solana_client::client_error::ClientError;
 use solana_sdk::pubkey::ParsePubkeyError;
 use std::array::TryFromSliceError;
 use std::io::Error as IoError;
+use reqwest::Error as ReqwestError;
+use actix_multipart::MultipartError; // Added for From<MultipartError>
 
 #[derive(Debug)]
 pub enum AppError {
@@ -89,5 +91,18 @@ impl From<Box<bincode::ErrorKind>> for AppError {
 impl From<IoError> for AppError {
     fn from(error: IoError) -> Self {
         AppError::InternalServerError(format!("IO error during deserialization: {}", error))
+    }
+}
+
+impl From<ReqwestError> for AppError {
+    fn from(error: ReqwestError) -> Self {
+        AppError::InternalServerError(format!("Reqwest error: {}", error))
+    }
+}
+
+// New implementation for MultipartError
+impl From<MultipartError> for AppError {
+    fn from(error: MultipartError) -> Self {
+        AppError::BadRequest(format!("Multipart parsing error: {}", error))
     }
 }

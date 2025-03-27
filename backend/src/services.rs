@@ -22,6 +22,7 @@ use crate::models::{
     RemoveWriteAuthorityRequest, PreparedTransaction, CreatePatientRequest,
     PreparedPatientTransaction, UpdatePatientRequest, PreparedUpdatePatientTransaction,
     GetPatientResponse, PatientAddressesResponse, AuthorityHistoryResponse, HistoryEntry,
+    PatientData,
 };
 use crate::utils;
 use rand::Rng;
@@ -31,6 +32,7 @@ use aes_gcm::{
 };
 use uuid::Uuid;
 use solana_client::rpc_config::{RpcProgramAccountsConfig, RpcAccountInfoConfig};
+use reqwest::multipart;
 
 pub struct TransactionService {
     client: RpcClient,
@@ -58,7 +60,11 @@ impl TransactionService {
         })
     }
 
-    pub async fn prepare_create_patient(&self, req: &CreatePatientRequest) -> Result<PreparedPatientTransaction, AppError> {
+    pub async fn prepare_create_patient(
+        &self,
+        req: &CreatePatientRequest,
+        file_data: Option<&[u8]>,
+    ) -> Result<PreparedPatientTransaction, AppError> {
         log::info!("Preparing create_patient transaction for user: {}", req.user_pubkey);
         let user_pubkey = Pubkey::from_str(&req.user_pubkey)?;
         let patient_seed = Keypair::new();
@@ -68,20 +74,56 @@ impl TransactionService {
             &self.program_id,
         );
         let (admin_pda, _bump) = Pubkey::find_program_address(&[b"admin"], &self.program_id);
+
+        let mut patient_data = req.patient_data.clone();
+
+        // Upload file to Pinata if provided
+        if let Some(file_bytes) = file_data {
+            let client = reqwest::Client::new();
+            let form = multipart::Form::new()
+                .part("file", multipart::Part::bytes(file_bytes.to_vec()).file_name("patient_file"));
+            let response = client
+                .post("https://pinata-upload-0h75.onrender.com/upload-to-pinata")
+                .multipart(form)
+                .send()
+                .await?;
+
+            if !response.status().is_success() {
+                let error_text = response.text().await?;
+                return Err(AppError::InternalServerError(format!(
+                    "Pinata upload failed: {}",
+                    error_text
+                )));
+            }
+
+            let cid: String = response.json::<serde_json::Value>().await?["cid"]
+                .as_str()
+                .ok_or(AppError::InternalServerError("No CID returned from Pinata upload".to_string()))?
+                .to_string();
+            patient_data.file = Some(cid.clone());
+            log::info!("File uploaded to Pinata with CID: {}", cid);
+        }
+
+        // Serialize patient data to JSON
+        let patient_data_json = serde_json::to_string(&patient_data)?;
+
+        // Encrypt the patient data
         let nonce_bytes = rand::thread_rng().gen::<[u8; 12]>();
         let nonce = Nonce::from_slice(&nonce_bytes);
         let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&self.encryption_key));
-        let encrypted_data = cipher.encrypt(nonce, req.patient_data.as_bytes())
+        let encrypted_data = cipher.encrypt(nonce, patient_data_json.as_bytes())
             .map_err(|e| AppError::InternalServerError(format!("Encryption failed: {}", e)))?;
         let encrypted_data_base64 = STANDARD.encode(&encrypted_data);
-        let nonce_base64 = STANDARD.encode(&nonce_bytes); // Fixed typo
-        let encrypted_string = format!("{}|{}", encrypted_data_base64, nonce_base64); // Use nonce_base64
+        let nonce_base64 = STANDARD.encode(&nonce_bytes);
+        let encrypted_string = format!("{}|{}", encrypted_data_base64, nonce_base64);
+
         let discriminator = [176, 85, 210, 156, 179, 74, 60, 203]; // create_patient discriminator
         let encrypted_data_bytes = encrypted_string.as_bytes();
         let mut instruction_data = Vec::with_capacity(8 + 4 + encrypted_data_bytes.len());
         instruction_data.extend_from_slice(&discriminator);
         instruction_data.extend_from_slice(&(encrypted_data_bytes.len() as u32).to_le_bytes());
         instruction_data.extend_from_slice(encrypted_data_bytes);
+
         let instruction = Instruction {
             program_id: self.program_id,
             accounts: vec![
@@ -93,6 +135,7 @@ impl TransactionService {
             ],
             data: instruction_data,
         };
+
         let recent_blockhash = self.get_latest_blockhash_with_retry(5, Duration::from_secs(5)).await?;
         let mut transaction = Transaction::new_with_payer(&[instruction], Some(&user_pubkey));
         transaction.message.recent_blockhash = recent_blockhash;
@@ -106,7 +149,11 @@ impl TransactionService {
         })
     }
 
-    pub async fn prepare_update_patient(&self, req: &UpdatePatientRequest) -> Result<PreparedUpdatePatientTransaction, AppError> {
+    pub async fn prepare_update_patient(
+        &self,
+        req: &UpdatePatientRequest,
+        file_data: Option<&[u8]>,
+    ) -> Result<PreparedUpdatePatientTransaction, AppError> {
         log::info!("Preparing update_patient transaction for user: {}", req.user_pubkey);
         let user_pubkey = Pubkey::from_str(&req.user_pubkey)?;
         let patient_seed_pubkey = Pubkey::from_str(&req.patient_seed)?;
@@ -115,20 +162,56 @@ impl TransactionService {
             &self.program_id,
         );
         let (admin_pda, _bump) = Pubkey::find_program_address(&[b"admin"], &self.program_id);
+
+        let mut patient_data = req.patient_data.clone();
+
+        // Upload file to Pinata if provided
+        if let Some(file_bytes) = file_data {
+            let client = reqwest::Client::new();
+            let form = multipart::Form::new()
+                .part("file", multipart::Part::bytes(file_bytes.to_vec()).file_name("patient_file"));
+            let response = client
+                .post("https://pinata-upload-0h75.onrender.com/upload-to-pinata")
+                .multipart(form)
+                .send()
+                .await?;
+
+            if !response.status().is_success() {
+                let error_text = response.text().await?;
+                return Err(AppError::InternalServerError(format!(
+                    "Pinata upload failed: {}",
+                    error_text
+                )));
+            }
+
+            let cid: String = response.json::<serde_json::Value>().await?["cid"]
+                .as_str()
+                .ok_or(AppError::InternalServerError("No CID returned from Pinata upload".to_string()))?
+                .to_string();
+            patient_data.file = Some(cid.clone());
+            log::info!("File uploaded to Pinata with CID: {}", cid);
+        }
+
+        // Serialize patient data to JSON
+        let patient_data_json = serde_json::to_string(&patient_data)?;
+
+        // Encrypt the patient data
         let nonce_bytes = rand::thread_rng().gen::<[u8; 12]>();
         let nonce = Nonce::from_slice(&nonce_bytes);
         let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&self.encryption_key));
-        let encrypted_data = cipher.encrypt(nonce, req.patient_data.as_bytes())
+        let encrypted_data = cipher.encrypt(nonce, patient_data_json.as_bytes())
             .map_err(|e| AppError::InternalServerError(format!("Encryption failed: {}", e)))?;
         let encrypted_data_base64 = STANDARD.encode(&encrypted_data);
         let nonce_base64 = STANDARD.encode(&nonce_bytes);
         let encrypted_string = format!("{}|{}", encrypted_data_base64, nonce_base64);
+
         let discriminator = [112, 151, 255, 60, 59, 88, 232, 154]; // update_patient discriminator
         let encrypted_data_bytes = encrypted_string.as_bytes();
         let mut instruction_data = Vec::with_capacity(8 + 4 + encrypted_data_bytes.len());
         instruction_data.extend_from_slice(&discriminator);
         instruction_data.extend_from_slice(&(encrypted_data_bytes.len() as u32).to_le_bytes());
         instruction_data.extend_from_slice(encrypted_data_bytes);
+
         let instruction = Instruction {
             program_id: self.program_id,
             accounts: vec![
@@ -140,11 +223,13 @@ impl TransactionService {
             ],
             data: instruction_data,
         };
+
         let recent_blockhash = self.get_latest_blockhash_with_retry(5, Duration::from_secs(5)).await?;
         let mut transaction = Transaction::new_with_payer(&[instruction], Some(&user_pubkey));
         transaction.message.recent_blockhash = recent_blockhash;
         let serialized_transaction = utils::serialize_transaction(&transaction)?;
         let encrypted_data_with_seed = format!("{}|{}", encrypted_string, patient_seed_pubkey.to_string());
+
         Ok(PreparedUpdatePatientTransaction {
             serialized_transaction,
             transaction_type: "update_patient".to_string(),
@@ -389,7 +474,7 @@ impl TransactionService {
         Ok(GetPatientResponse { view_url })
     }
 
-    pub async fn view_patient(&self, token: &str, app_state: &AppState) -> Result<String, AppError> {
+    pub async fn view_patient(&self, token: &str, app_state: &AppState) -> Result<PatientData, AppError> {
         let now = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
@@ -443,7 +528,10 @@ impl TransactionService {
         let decrypted_data = cipher.decrypt(nonce, encrypted_data.as_ref())
             .map_err(|e| AppError::InternalServerError(format!("Decryption failed: {}", e)))?;
 
-        Ok(String::from_utf8(decrypted_data).unwrap_or_else(|_| "Decrypted data not UTF-8".to_string()))
+        let patient_data: PatientData = serde_json::from_slice(&decrypted_data)
+            .map_err(|e| AppError::InternalServerError(format!("Failed to deserialize patient data: {}", e)))?;
+
+        Ok(patient_data)
     }
 
     pub async fn get_authority_history(&self) -> Result<AuthorityHistoryResponse, AppError> {
