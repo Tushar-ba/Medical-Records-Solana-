@@ -102,7 +102,7 @@ pub struct GetPatientResponse {
 
 #[derive(Serialize, Deserialize)]
 pub struct PatientAddressesResponse {
-    pub patient_addresses: Vec<String>, // List of PDAs
+    pub patient_addresses: Vec<(String, String)>, // (pda, seed)
 }
 
 #[derive(Serialize, Deserialize)]

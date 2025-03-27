@@ -35,8 +35,8 @@ use solana_client::rpc_config::{RpcProgramAccountsConfig, RpcAccountInfoConfig};
 pub struct TransactionService {
     client: RpcClient,
     admin_keypair: Keypair,
-    admin_pubkey: Pubkey,
-    program_id: Pubkey,
+    pub admin_pubkey: Pubkey,
+    pub program_id: Pubkey,
     encryption_key: [u8; 32],
 }
 
@@ -63,7 +63,6 @@ impl TransactionService {
         let user_pubkey = Pubkey::from_str(&req.user_pubkey)?;
         let patient_seed = Keypair::new();
         let patient_seed_pubkey = patient_seed.pubkey();
-        // Use admin_pubkey instead of user_pubkey for PDA seeds, as per lib.rs
         let (patient_pda, _bump) = Pubkey::find_program_address(
             &[b"patient", self.admin_pubkey.as_ref(), patient_seed_pubkey.as_ref()],
             &self.program_id,
@@ -75,8 +74,8 @@ impl TransactionService {
         let encrypted_data = cipher.encrypt(nonce, req.patient_data.as_bytes())
             .map_err(|e| AppError::InternalServerError(format!("Encryption failed: {}", e)))?;
         let encrypted_data_base64 = STANDARD.encode(&encrypted_data);
-        let nonce_base64 = STANDARD.encode(&nonce_bytes);
-        let encrypted_string = format!("{}|{}", encrypted_data_base64, nonce_base64);
+        let nonce_base64 = STANDARD.encode(&nonce_bytes); // Fixed typo
+        let encrypted_string = format!("{}|{}", encrypted_data_base64, nonce_base64); // Use nonce_base64
         let discriminator = [176, 85, 210, 156, 179, 74, 60, 203]; // create_patient discriminator
         let encrypted_data_bytes = encrypted_string.as_bytes();
         let mut instruction_data = Vec::with_capacity(8 + 4 + encrypted_data_bytes.len());
@@ -88,7 +87,7 @@ impl TransactionService {
             accounts: vec![
                 AccountMeta::new(patient_pda, false),
                 AccountMeta::new_readonly(patient_seed_pubkey, false),
-                AccountMeta::new_readonly(user_pubkey, true), // User is the only signer
+                AccountMeta::new_readonly(user_pubkey, true),
                 AccountMeta::new_readonly(admin_pda, false),
                 AccountMeta::new_readonly(system_program::id(), false),
             ],
@@ -111,7 +110,6 @@ impl TransactionService {
         log::info!("Preparing update_patient transaction for user: {}", req.user_pubkey);
         let user_pubkey = Pubkey::from_str(&req.user_pubkey)?;
         let patient_seed_pubkey = Pubkey::from_str(&req.patient_seed)?;
-        // Use admin_pubkey instead of user_pubkey for PDA seeds, as per lib.rs
         let (patient_pda, _bump) = Pubkey::find_program_address(
             &[b"patient", self.admin_pubkey.as_ref(), patient_seed_pubkey.as_ref()],
             &self.program_id,
@@ -136,7 +134,7 @@ impl TransactionService {
             accounts: vec![
                 AccountMeta::new(patient_pda, false),
                 AccountMeta::new_readonly(patient_seed_pubkey, false),
-                AccountMeta::new_readonly(user_pubkey, true), // User is the only signer
+                AccountMeta::new_readonly(user_pubkey, true),
                 AccountMeta::new_readonly(admin_pda, false),
                 AccountMeta::new_readonly(system_program::id(), false),
             ],
@@ -283,13 +281,6 @@ impl TransactionService {
         let transaction_bytes = STANDARD.decode(serialized_transaction)?;
         let transaction: Transaction = bincode::deserialize(&transaction_bytes)?;
     
-        // Log transaction details for debugging
-        log::info!("Fee Payer: {}", transaction.message.header.num_required_signatures);
-        log::info!("Account Keys: {:?}", transaction.message.account_keys);
-        log::info!("Signatures: {:?}", transaction.signatures);
-        log::info!("Instruction Accounts: {:?}", transaction.message.instructions[0].accounts);
-    
-        // Verify that all required signatures are present
         let required_signers: Vec<Pubkey> = transaction
             .message
             .account_keys
@@ -309,7 +300,6 @@ impl TransactionService {
             }
         }
     
-        // Submit the transaction as-is
         let signature = self.client.send_and_confirm_transaction(&transaction).await?;
         log::info!("Transaction submitted with signature: {}", signature);
         Ok(signature.to_string())
@@ -350,7 +340,6 @@ impl TransactionService {
         );
         let (admin_pda, _bump) = Pubkey::find_program_address(&[b"admin"], &self.program_id);
     
-        // Fetch the admin account to verify read authorities
         let admin_account_info = self.client.get_account(&admin_pda).await?;
         if admin_account_info.owner != self.program_id {
             return Err(AppError::BadRequest("Admin account not owned by program".to_string()));
@@ -362,15 +351,13 @@ impl TransactionService {
             read_authorities: Vec<Pubkey>,
             write_authorities: Vec<Pubkey>,
         }
-        let admin_data = &admin_account_info.data[8..]; // Skip the 8-byte discriminator
+        let admin_data = &admin_account_info.data[8..];
         let admin: AdminAccount = BorshDeserialize::deserialize(&mut admin_data.as_ref())?;
     
-        // Check if the user has read authority
         if !admin.read_authorities.contains(&user_pubkey) {
             return Err(AppError::Unauthorized("User does not have read authority".to_string()));
         }
     
-        // Proceed to fetch patient data
         let patient_account_info = self.client.get_account(&patient_pda).await?;
         if patient_account_info.owner != self.program_id {
             return Err(AppError::BadRequest("Patient account not owned by program".to_string()));
@@ -390,12 +377,11 @@ impl TransactionService {
             return Err(AppError::BadRequest("Patient record not initialized".to_string()));
         }
     
-        // Generate a temporary token
         let token = Uuid::new_v4().to_string();
         let expiration = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
-            .as_secs() + 3600; // 1-hour expiration
+            .as_secs() + 3600;
         app_state.token_store.insert(token.clone(), (patient_seed.to_string(), expiration));
     
         let view_url = format!("http://localhost:8080/api/view_patient/{}", token);
@@ -509,13 +495,13 @@ impl TransactionService {
         Ok(response)
     }
 
-    pub async fn get_patient_addresses(&self, _user_pubkey: &str) -> Result<PatientAddressesResponse, AppError> {
-        log::info!("Fetching all patient addresses for user: {}", _user_pubkey);
+    pub async fn get_patient_addresses(&self, _user_pubkey: &str, app_state: &AppState) -> Result<PatientAddressesResponse, AppError> {
+        log::info!("Fetching all patient addresses and seeds for user: {}", _user_pubkey);
         let config = RpcProgramAccountsConfig {
             filters: Some(vec![
                 RpcFilterType::Memcmp(
                     Memcmp::new(
-                        0, // offset
+                        0,
                         solana_client::rpc_filter::MemcmpEncodedBytes::Base58(
                             bs58::encode(&[118, 127, 39, 235, 201, 189, 0, 109]).into_string()
                         ),
@@ -533,16 +519,21 @@ impl TransactionService {
             .get_program_accounts_with_config(&self.program_id, config)
             .await?;
     
-        let patient_addresses = accounts
-            .into_iter()
-            .map(|(pubkey, _account)| pubkey.to_string())
-            .collect();
+        let mut patient_data = Vec::new();
+        for (pubkey, _account) in accounts {
+            let pda_str = pubkey.to_string();
+            if let Some(seed) = app_state.patient_seed_map.get(&pda_str) {
+                patient_data.push((pda_str, seed.value().clone()));
+            } else {
+                patient_data.push((pda_str, "Unknown".to_string()));
+            }
+        }
     
         let response = PatientAddressesResponse {
-            patient_addresses,
+            patient_addresses: patient_data.into_iter().map(|(addr, seed)| (addr, seed)).collect(),
         };
     
-        log::info!("Fetched {} patient addresses", response.patient_addresses.len());
+        log::info!("Fetched {} patient addresses with seeds", response.patient_addresses.len());
         Ok(response)
     }
 

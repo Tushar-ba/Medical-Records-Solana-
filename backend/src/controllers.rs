@@ -1,6 +1,8 @@
 use actix_web::{web, HttpResponse};
 use log::{info, error};
 use solana_sdk::signature::Signature;
+use solana_sdk::pubkey::Pubkey;
+use std::str::FromStr; // Added import
 use bs58;
 use crate::app_state::AppState;
 use crate::error::AppError;
@@ -99,10 +101,22 @@ pub async fn prepare_create_patient(
     info!("Received prepare_create_patient request");
     let user_pubkey = req_data.into_inner();
     let modified_req = crate::models::CreatePatientRequest {
-        user_pubkey,
+        user_pubkey: user_pubkey.clone(),
         patient_data: req.patient_data.clone(),
     };
     let prepared_tx = data.solana_service.prepare_create_patient(&modified_req).await?;
+    
+    // Extract patient_seed and patient_pda to store in AppState
+    let parts: Vec<&str> = prepared_tx.encrypted_data_with_seed.split('|').collect();
+    if parts.len() >= 3 {
+        let patient_seed = parts[2].to_string();
+        let patient_pda = Pubkey::find_program_address(
+            &[b"patient", data.solana_service.admin_pubkey.as_ref(), Pubkey::from_str(&patient_seed)?.as_ref()],
+            &data.solana_service.program_id,
+        ).0.to_string();
+        data.patient_seed_map.insert(patient_pda, patient_seed);
+    }
+    
     Ok(HttpResponse::Ok().json(prepared_tx))
 }
 
@@ -158,7 +172,7 @@ pub async fn view_patient(
     req_data: web::ReqData<String>,
 ) -> Result<HttpResponse, AppError> {
     let token = path.into_inner();
-    let _user_pubkey = req_data.into_inner(); // JWT already verified
+    let _user_pubkey = req_data.into_inner();
     info!("Received view_patient request for token: {}", token);
     let decrypted_data = data.solana_service.view_patient(&token, &data).await?;
     Ok(HttpResponse::Ok().body(decrypted_data))
@@ -178,6 +192,6 @@ pub async fn get_patient_addresses(
 ) -> Result<HttpResponse, AppError> {
     let user_pubkey = req_data.into_inner();
     info!("Received get_patient_addresses request for user: {}", user_pubkey);
-    let addresses = data.solana_service.get_patient_addresses(&user_pubkey).await?;
+    let addresses = data.solana_service.get_patient_addresses(&user_pubkey, &data).await?;
     Ok(HttpResponse::Ok().json(addresses))
 }
