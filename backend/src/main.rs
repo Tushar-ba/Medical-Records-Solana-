@@ -1,6 +1,8 @@
 use actix_web::{web, App, HttpServer};
 use dotenv::dotenv;
 use std::env;
+use std::fs;
+use serde_json;
 
 mod app_state;
 mod controllers;
@@ -37,18 +39,20 @@ async fn main() -> std::io::Result<()> {
     };
     let app_state = web::Data::new(app_state::AppState::new(solana_service, jwt_config));
 
-    // Rebuild patient_seed_map on startup
-    let patient_addresses = app_state
-        .solana_service
-        .get_patient_addresses(&app_state.solana_service.admin_pubkey.to_string(), &app_state)
-        .await
-        .expect("Failed to fetch patient addresses on startup");
-    for (pda, seed) in patient_addresses.patient_addresses {
-        if seed != "Unknown" {
-            app_state.patient_seed_map.insert(pda, seed);
+    // Load patient_seed_map from file
+    let seed_map_file = "patient_seed_map.json";
+    if let Ok(file_contents) = fs::read_to_string(seed_map_file) {
+        if let Ok(seed_map_data) = serde_json::from_str::<Vec<(String, String)>>(&file_contents) {
+            for (pda, seed) in seed_map_data {
+                app_state.patient_seed_map.insert(pda, seed);
+            }
+            log::info!("Loaded patient_seed_map with {} entries from {}", app_state.patient_seed_map.len(), seed_map_file);
+        } else {
+            log::warn!("Failed to parse patient_seed_map from {}, starting with empty map", seed_map_file);
         }
+    } else {
+        log::info!("No patient_seed_map file found at {}, starting with empty map", seed_map_file);
     }
-    log::info!("Rebuilt patient_seed_map with {} entries", app_state.patient_seed_map.len());
 
     log::info!("Server running on http://127.0.0.1:8080");
 

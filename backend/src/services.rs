@@ -35,6 +35,7 @@ use std::env;
 use uuid::Uuid;
 use solana_client::rpc_config::{RpcProgramAccountsConfig, RpcAccountInfoConfig};
 use reqwest::multipart;
+use std::fs;
 
 pub struct TransactionService {
     client: RpcClient,
@@ -79,7 +80,7 @@ impl TransactionService {
         &self,
         req: &CreatePatientRequest,
         file_data: Option<&[u8]>,
-        app_state: &AppState, // Added AppState parameter
+        app_state: &AppState,
     ) -> Result<PreparedPatientTransaction, AppError> {
         log::info!("Preparing create_patient transaction for user: {}", req.user_pubkey);
         let user_pubkey = Pubkey::from_str(&req.user_pubkey)?;
@@ -161,6 +162,20 @@ impl TransactionService {
         // Store the PDA-seed mapping in patient_seed_map
         app_state.patient_seed_map.insert(patient_pda.to_string(), patient_seed_pubkey.to_string());
         log::info!("Stored patient seed for PDA: {} -> {}", patient_pda, patient_seed_pubkey);
+
+        // Save patient_seed_map to file
+        let seed_map_data: Vec<(String, String)> = app_state.patient_seed_map.iter()
+            .map(|entry| (entry.key().clone(), entry.value().clone()))
+            .collect();
+        if let Ok(json_data) = serde_json::to_string(&seed_map_data) {
+            if let Err(e) = fs::write("patient_seed_map.json", json_data) {
+                log::error!("Failed to save patient_seed_map to file: {}", e);
+            } else {
+                log::info!("Saved patient_seed_map to patient_seed_map.json");
+            }
+        } else {
+            log::error!("Failed to serialize patient_seed_map to JSON");
+        }
 
         Ok(PreparedPatientTransaction {
             serialized_transaction,
