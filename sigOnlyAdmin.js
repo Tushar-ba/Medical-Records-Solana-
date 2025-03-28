@@ -1,10 +1,15 @@
 const { Connection, Keypair, Transaction } = require('@solana/web3.js');
 
 // The serialized transaction from the backend (update this with the new output after fixing the backend)
-const serializedTransaction = "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAQG6fWhQa5Pj0YO8v6xqrYD7iBC/Y+qtyR319sTolpWAdQoaaBmTar3Px1qY07roRb6lfjXRB6Kpv3U5145b+HiQQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaqa8a/wTASq+n4GGMyHsVrpmQYNrjXlZQEOSuIlxGvHv/iq/O1NjDPBrsXiwGY49TG/fYA2lROTBwVE5Vj70Zv9yv89DIe/D9v/+Ie6+9naktkSMZ6mqO0zcODZ3nD1EDiOPGt+WPXIbTVWiQLV8UIMCrTrrdC09VoUwFzLWoHYBBQUBBAADAu0BsFXSnLNKPMvhAAAAaXM0UXpHV2RxaHZ3UWZQbnBJaXJHZEdLSHVOeVVMTnRtUnB5ZjI3LzNMd1VYaks4ZlJoYWE1bm9pQzg5QlVlVWpjejFYS3NmTmVaR011aGxMWS95Qlgyc2xrdGVpMXUzWjFQaDNhNlVYYjk3ejF0c3RJTXBKZ0JVV2VPQ3RPdWtCb0Qxd2h2bWNtYXJISnd0UzR2UmlqSVZsMVVKclk2QmhLMVZid0h0aXhGcldDcnRBUVpITFN2ZlZPU0ZNOWExV1ltK0NJZC9ZU3NrbVdFPXxoQi9qS25SNC9iRW81N1Bn";
+const serializedTransaction = "AZzbPVUK7qaGoIpb51RhhFf32vAREidTqQS7D7Iky/hD969MpcolhI58+PCu3aeQNSTRhJxVx+yFQj27cFC2/QsBAAIF+t0rZ/m2aG8+M6Llre9p4jc3v/AeM2Q+iT5ivckQtUcsCTTW8bNksHMlhA47DqLSytEcBCZeF9ZB9aS1j4wxN2qmvGv8EwEqvp+BhjMh7Fa6ZkGDa415WUBDkriJcRrxAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/cr/PQyHvw/b//iHuvvZ2pLZEjGepqjtM3Dg2d5w9RG2mrULOv3WQ8idag5jmi9C/BYy1LohexDcYfs6xk3cUAQQEAAIBAyh57nosbIeMSun1oUGuT49GDvL+saq2A+4gQv2Pqrckd9fbE6JaVgHU";
 
 // User keypair (GkHELS6i7BZefYckfmWdxPH6id2rywimHxG1Vf8XBUMq)
-const privateKeyBytes = Uint8Array.from([82, 28, 221, 12, 243, 121, 128, 239, 117, 11, 62, 191, 5, 76, 17, 47, 243, 244, 75, 102, 96, 0, 124, 231, 148, 176, 190, 82, 57, 180, 200, 108, 233, 245, 161, 65, 174, 79, 143, 70, 14, 242, 254, 177, 170, 182, 3, 238, 32, 66, 253, 143, 170, 183, 36, 119, 215, 219, 19, 162, 90, 86, 1, 212]);
+const privateKeyBytes = Uint8Array.from([
+    136, 87, 238, 120, 158, 176, 198, 253, 22, 69, 120, 173, 78, 54, 41, 198,
+    32, 246, 56, 157, 165, 115, 168, 235, 89, 159, 83, 221, 128, 226, 248, 102,
+    250, 221, 43, 103, 249, 182, 104, 111, 62, 51, 162, 229, 173, 239, 105, 226,
+    55, 55, 191, 240, 30, 51, 100, 62, 137, 62, 98, 189, 201, 16, 181, 71
+]);
 
 // Set up the connection to Solana Devnet
 const connection = new Connection("https://api.devnet.solana.com", { commitment: "confirmed" });

@@ -8,6 +8,25 @@ All endpoints except `/auth` require a valid JWT token in the `Authorization` he
 
 ---
 
+## Transaction Flow
+This API uses a two-step process to execute transactions on the Solana blockchain:
+
+1. **Prepare a Transaction**:
+   - **Endpoint**: Use one of the `/transactions/prepare/*` endpoints (e.g., `/prepare/create-patient`, `/prepare/add-read-authority`).
+   - **Backend Action**: The backend constructs a Solana transaction with a recent blockhash and serializes it as a base64-encoded string (`serialized_transaction`).
+   - **Client Action**: 
+     - Receive the `serialized_transaction` from the response.
+     - Deserialize the base64 string into a Solana transaction object (e.g., using `solana-sdk` in Rust, `@solana/web3.js` in JavaScript, or equivalent libraries).
+     - Sign the transaction with the client’s private key (e.g., via a wallet like Phantom, Solana CLI, or programmatically with a keypair).
+     - Re-serialize the signed transaction back to base64.
+
+2. **Submit the Transaction**:
+   - **Endpoint**: Send the signed `serialized_transaction` to `/transactions/submit`.
+   - **Backend Action**: The backend submits the signed transaction to the Solana network and returns the transaction signature.
+   - **Client Action**: 
+     - Use the returned `signature` to monitor the transaction status on the Solana blockchain (e.g., via Solana Explorer or RPC calls like `getSignatureStatuses`).
+---
+
 ## Endpoints
 
 ### 1. POST /auth
@@ -16,7 +35,8 @@ Authenticate a user and generate a JWT token.
 - **Method**: `POST`
 - **Path**: `/api/auth`
 - **Description**: Verifies a user's public key and signature, returning a JWT token for authenticated requests.
-- **Headers**: None
+- **Headers**: 
+  - `Content-Type: application/json`
 - **Request Body**:
   ```json
   {
@@ -36,7 +56,7 @@ Authenticate a user and generate a JWT token.
   -d '{"public_key": "HtGXcunbPUU54wMa9ZiXdMXvv1b5ppT7DeFLJWdtH7Lr", "signature": "2k3j4k5l6m7n8p9q0r1s2t3u4v5w6x7y8z9a0b1c2d3e4f5g6h7i8j9k0l1m2n3o4p5q6r7s8t9u0v1w2x3y4z5", "timestamp": 1698765432}'
   ```
 
-- **Example Response** (Success - 200 OK):
+- **Example Response** (200 OK):
   ```json
   {
     "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJIdEdYY3VuYlBVV TU0d01hOVppWGNNWHZ2MWI1cHBUN0RlRk5KV2R0SDdMciIsImV4cCI6MTY5ODc2OTAzMn0.4z5t9u0v1w2x3y4z5a0b1c2d3e4f5g6h7i8j9k0l1m2n",
@@ -57,9 +77,10 @@ Prepare a transaction to add a read authority.
 
 - **Method**: `POST`
 - **Path**: `/api/transactions/prepare/add-read-authority`
-- **Description**: Prepares a Solana transaction to add a read authority to the admin account.
+- **Description**: Prepares a Solana transaction to add a read authority to the admin account. The client must sign the returned `serialized_transaction` and submit it via `/transactions/submit`.
 - **Headers**:
   - `Authorization: Bearer <jwt_token>`
+  - `Content-Type: application/json`
 - **Request Body**:
   ```json
   {
@@ -90,6 +111,9 @@ Prepare a transaction to add a read authority.
   "Unauthorized: Invalid token"
   ```
 
+- **Client Next Steps**:
+  - Deserialize `serialized_transaction`, sign it with the user’s private key, and submit it to `/transactions/submit`.
+
 ---
 
 ### 3. POST /transactions/prepare/remove-read-authority
@@ -97,9 +121,10 @@ Prepare a transaction to remove a read authority.
 
 - **Method**: `POST`
 - **Path**: `/api/transactions/prepare/remove-read-authority`
-- **Description**: Prepares a Solana transaction to remove a read authority from the admin account.
+- **Description**: Prepares a Solana transaction to remove a read authority from the admin account. The client must sign the returned `serialized_transaction` and submit it via `/transactions/submit`.
 - **Headers**:
   - `Authorization: Bearer <jwt_token>`
+  - `Content-Type: application/json`
 - **Request Body**:
   ```json
   {
@@ -130,6 +155,9 @@ Prepare a transaction to remove a read authority.
   "Unauthorized: Invalid token"
   ```
 
+- **Client Next Steps**:
+  - Deserialize `serialized_transaction`, sign it with the user’s private key, and submit it to `/transactions/submit`.
+
 ---
 
 ### 4. POST /transactions/prepare/add-write-authority
@@ -137,9 +165,10 @@ Prepare a transaction to add a write authority.
 
 - **Method**: `POST`
 - **Path**: `/api/transactions/prepare/add-write-authority`
-- **Description**: Prepares a Solana transaction to add a write authority to the admin account.
+- **Description**: Prepares a Solana transaction to add a write authority to the admin account. The client must sign the returned `serialized_transaction` and submit it via `/transactions/submit`.
 - **Headers**:
   - `Authorization: Bearer <jwt_token>`
+  - `Content-Type: application/json`
 - **Request Body**:
   ```json
   {
@@ -170,6 +199,9 @@ Prepare a transaction to add a write authority.
   "Unauthorized: Invalid token"
   ```
 
+- **Client Next Steps**:
+  - Deserialize `serialized_transaction`, sign it with the user’s private key, and submit it to `/transactions/submit`.
+
 ---
 
 ### 5. POST /transactions/prepare/remove-write-authority
@@ -177,9 +209,10 @@ Prepare a transaction to remove a write authority.
 
 - **Method**: `POST`
 - **Path**: `/api/transactions/prepare/remove-write-authority`
-- **Description**: Prepares a Solana transaction to remove a write authority from the admin account.
+- **Description**: Prepares a Solana transaction to remove a write authority from the admin account. The client must sign the returned `serialized_transaction` and submit it via `/transactions/submit`.
 - **Headers**:
   - `Authorization: Bearer <jwt_token>`
+  - `Content-Type: application/json`
 - **Request Body**:
   ```json
   {
@@ -210,6 +243,9 @@ Prepare a transaction to remove a write authority.
   "Unauthorized: Invalid token"
   ```
 
+- **Client Next Steps**:
+  - Deserialize `serialized_transaction`, sign it with the user’s private key, and submit it to `/transactions/submit`.
+
 ---
 
 ### 6. POST /transactions/prepare/create-patient
@@ -217,23 +253,38 @@ Prepare a transaction to create a patient record.
 
 - **Method**: `POST`
 - **Path**: `/api/transactions/prepare/create-patient`
-- **Description**: Prepares a Solana transaction to create a new patient record with encrypted data.
+- **Description**: Prepares a Solana transaction to create a new patient record with encrypted data. Supports file uploads to Pinata. The client must sign the returned `serialized_transaction` and submit it via `/transactions/submit`.
 - **Headers**:
   - `Authorization: Bearer <jwt_token>`
-- **Request Body**:
-  ```json
-  {
-    "patient_data": "string"
-  }
-  ```
-  - `patient_data`: Plaintext patient data to be encrypted (e.g., JSON string).
+  - `Content-Type: multipart/form-data`
+- **Request Body (Form Data)**:
+  - `user_pubkey`: (Optional) Solana public key of the user (base58-encoded). If omitted, derived from JWT.
+  - `name`: Patient’s name (string).
+  - `blood_type`: Patient’s blood type (string, e.g., "O+").
+  - `previous_report`: Patient’s previous medical report (string).
+  - `ph_no`: Patient’s phone number (string).
+  - `file`: (Optional) File to upload (binary data, e.g., PDF or image).
 
-- **Example Request**:
+- **Example Request** (With File):
   ```bash
   curl -X POST http://127.0.0.1:8080/api/transactions/prepare/create-patient \
   -H "Authorization: Bearer <jwt_token>" \
-  -H "Content-Type: application/json" \
-  -d '{"patient_data": "name: \"John Doe\", bloodType: \"O+\""}'
+  -F "user_pubkey=HtGXcunbPUU54wMa9ZiXdMXvv1b5ppT7DeFLJWdtH7Lr" \
+  -F "name=John Doe" \
+  -F "blood_type=O+" \
+  -F "previous_report=Healthy" \
+  -F "ph_no=1234567890" \
+  -F "file=@/path/to/report.pdf"
+  ```
+
+- **Example Request** (Without File):
+  ```bash
+  curl -X POST http://127.0.0.1:8080/api/transactions/prepare/create-patient \
+  -H "Authorization: Bearer <jwt_token>" \
+  -F "name=John Doe" \
+  -F "blood_type=O+" \
+  -F "previous_report=Healthy" \
+  -F "ph_no=1234567890"
   ```
 
 - **Example Response** (200 OK):
@@ -245,10 +296,19 @@ Prepare a transaction to create a patient record.
   }
   ```
 
+- **Error Response** (400 Bad Request):
+  ```json
+  "Bad Request: Missing required patient data fields"
+  ```
+
 - **Error Response** (401 Unauthorized):
   ```json
-  "Unauthorized: Invalid token"
+  "Unauthorized: User pubkey mismatch"
   ```
+
+- **Client Next Steps**:
+  - Deserialize `serialized_transaction`, sign it with the user’s private key, and submit it to `/transactions/submit`.
+  - Store `encrypted_data_with_seed` if needed for later reference (e.g., to extract `patient_seed_pubkey`).
 
 ---
 
@@ -257,25 +317,41 @@ Prepare a transaction to update a patient record.
 
 - **Method**: `POST`
 - **Path**: `/api/transactions/prepare/update-patient`
-- **Description**: Prepares a Solana transaction to update an existing patient record with new encrypted data.
+- **Description**: Prepares a Solana transaction to update an existing patient record with new encrypted data. Supports file uploads to Pinata. The client must sign the returned `serialized_transaction` and submit it via `/transactions/submit`.
 - **Headers**:
   - `Authorization: Bearer <jwt_token>`
-- **Request Body**:
-  ```json
-  {
-    "patient_seed": "string",
-    "patient_data": "string"
-  }
-  ```
+  - `Content-Type: multipart/form-data`
+- **Request Body (Form Data)**:
+  - `user_pubkey`: (Optional) Solana public key of the user (base58-encoded). If omitted, derived from JWT.
   - `patient_seed`: Public key of the patient seed (base58-encoded).
-  - `patient_data`: Updated plaintext patient data to be encrypted.
+  - `name`: Updated patient’s name (string).
+  - `blood_type`: Updated patient’s blood type (string, e.g., "O+").
+  - `previous_report`: Updated patient’s previous medical report (string).
+  - `ph_no`: Updated patient’s phone number (string).
+  - `file`: (Optional) Updated file to upload (binary data, e.g., PDF or image).
 
-- **Example Request**:
+- **Example Request** (With File):
   ```bash
   curl -X POST http://127.0.0.1:8080/api/transactions/prepare/update-patient \
   -H "Authorization: Bearer <jwt_token>" \
-  -H "Content-Type: application/json" \
-  -d '{"patient_seed": "GaoZEZtR62xeRez7WTPHWd4pdDSAHGscgj5pwoHkLgnN", "patient_data": "name: \"John Doe\", bloodType: \"O+\", previousReport: \"Updated Report\""}'
+  -F "user_pubkey=HtGXcunbPUU54wMa9ZiXdMXvv1b5ppT7DeFLJWdtH7Lr" \
+  -F "patient_seed=GaoZEZtR62xeRez7WTPHWd4pdDSAHGscgj5pwoHkLgnN" \
+  -F "name=John Doe" \
+  -F "blood_type=O+" \
+  -F "previous_report=Updated Report" \
+  -F "ph_no=1234567890" \
+  -F "file=@/path/to/updated_report.pdf"
+  ```
+
+- **Example Request** (Without File):
+  ```bash
+  curl -X POST http://127.0.0.1:8080/api/transactions/prepare/update-patient \
+  -H "Authorization: Bearer <jwt_token>" \
+  -F "patient_seed=GaoZEZtR62xeRez7WTPHWd4pdDSAHGscgj5pwoHkLgnN" \
+  -F "name=John Doe" \
+  -F "blood_type=O+" \
+  -F "previous_report=Updated Report" \
+  -F "ph_no=1234567890"
   ```
 
 - **Example Response** (200 OK):
@@ -287,10 +363,18 @@ Prepare a transaction to update a patient record.
   }
   ```
 
+- **Error Response** (400 Bad Request):
+  ```json
+  "Bad Request: No patient_seed provided"
+  ```
+
 - **Error Response** (401 Unauthorized):
   ```json
-  "Unauthorized: Invalid token"
+  "Unauthorized: User pubkey mismatch"
   ```
+
+- **Client Next Steps**:
+  - Deserialize `serialized_transaction`, sign it with the user’s private key, and submit it to `/transactions/submit`.
 
 ---
 
@@ -299,9 +383,10 @@ Submit a signed transaction to the Solana network.
 
 - **Method**: `POST`
 - **Path**: `/api/transactions/submit`
-- **Description**: Submits a signed transaction to the Solana network and returns the transaction signature.
+- **Description**: Submits a signed transaction (prepared via `/transactions/prepare/*` and signed by the client) to the Solana network and returns the transaction signature.
 - **Headers**:
   - `Authorization: Bearer <jwt_token>`
+  - `Content-Type: application/json`
 - **Request Body**:
   ```json
   {
@@ -327,8 +412,11 @@ Submit a signed transaction to the Solana network.
 
 - **Error Response** (400 Bad Request):
   ```json
-  "Bad Request: User signature not found"
+  "Bad Request: Missing signature for required signer: <pubkey>"
   ```
+
+- **Client Next Steps**:
+  - Use the `signature` to monitor transaction confirmation (e.g., via Solana Explorer or RPC).
 
 ---
 
@@ -364,7 +452,52 @@ Get the list of authorities.
 
 ---
 
-### 10. GET /patient/{patient_seed}
+### 10. GET /transactions/authority-history
+Get the authority history.
+
+- **Method**: `GET`
+- **Path**: `/api/transactions/authority-history`
+- **Description**: Retrieves the history of authority changes (additions/removals) from the Solana program.
+- **Headers**:
+  - `Authorization: Bearer <jwt_token>`
+- **Request Body**: None
+
+- **Example Request**:
+  ```bash
+  curl -X GET http://127.0.0.1:8080/api/transactions/authority-history \
+  -H "Authorization: Bearer <jwt_token>"
+  ```
+
+- **Example Response** (200 OK):
+  ```json
+  {
+    "entries": [
+      {
+        "admin": "HtGXcunbPUU54wMa9ZiXdMXvv1b5ppT7DeFLJWdtH7Lr",
+        "authority": "GaoZEZtR62xeRez7WTPHWd4pdDSAHGscgj5pwoHkLgnN",
+        "added": true,
+        "is_read": true,
+        "timestamp": 1698765432
+      },
+      {
+        "admin": "HtGXcunbPUU54wMa9ZiXdMXvv1b5ppT7DeFLJWdtH7Lr",
+        "authority": "FaoZEZtR62xeRez7WTPHWd4pdDSAHGscgj5pwoHkLgnM",
+        "added": false,
+        "is_read": false,
+        "timestamp": 1698765500
+      }
+    ]
+  }
+  ```
+
+- **Error Response** (400 Bad Request):
+  ```json
+  "Bad Request: History account not owned by program"
+  ```
+
+---
+
+### 11. GET /patient/{patient_seed}
 Get a time-limited URL to view patient data.
 
 - **Method**: `GET`
@@ -394,9 +527,14 @@ Get a time-limited URL to view patient data.
   "Bad Request: Patient record not initialized"
   ```
 
+- **Error Response** (401 Unauthorized):
+  ```json
+  "Unauthorized: User does not have read authority"
+  ```
+
 ---
 
-### 11. GET /view_patient/{token}
+### 12. GET /view_patient/{token}
 View decrypted patient data.
 
 - **Method**: `GET`
@@ -415,8 +553,14 @@ View decrypted patient data.
   ```
 
 - **Example Response** (200 OK):
-  ```
-  name: "John Doe", bloodType: "O+", previousReport: "Updated Report"
+  ```json
+  {
+    "name": "John Doe",
+    "blood_type": "O+",
+    "previous_report": "Updated Report",
+    "ph_no": "1234567890",
+    "file": "QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco"
+  }
   ```
 
 - **Error Response** (401 Unauthorized):
@@ -431,6 +575,39 @@ View decrypted patient data.
 
 ---
 
+### 13. GET /patients/addresses
+Get all patient addresses and seeds.
+
+- **Method**: `GET`
+- **Path**: `/api/patients/addresses`
+- **Description**: Retrieves a list of all patient PDAs and their associated seeds from the Solana program.
+- **Headers**:
+  - `Authorization: Bearer <jwt_token>`
+- **Request Body**: None
+
+- **Example Request**:
+  ```bash
+  curl -X GET http://127.0.0.1:8080/api/patients/addresses \
+  -H "Authorization: Bearer <jwt_token>"
+  ```
+
+- **Example Response** (200 OK):
+  ```json
+  {
+    "patient_addresses": [
+      ["66DodqE3a344J6QQw4wzXxcsPRwP9ocuPzPzaLbMTPD3", "GaoZEZtR62xeRez7WTPHWd4pdDSAHGscgj5pwoHkLgnN"],
+      ["7xKzLqP9mR2vN3tW5uY6iJ8oK9pQ0rT1sU2vW3xY4z5", "FaoZEZtR62xeRez7WTPHWd4pdDSAHGscgj5pwoHkLgnM"]
+    ]
+  }
+  ```
+
+- **Error Response** (401 Unauthorized):
+  ```json
+  "Unauthorized: Invalid token"
+  ```
+
+---
+
 ## Error Codes
 - **200 OK**: Request succeeded.
 - **400 Bad Request**: Invalid input or data not found.
@@ -441,21 +618,7 @@ View decrypted patient data.
 - Replace `<jwt_token>` with the token obtained from `/auth`.
 - The `serialized_transaction` in responses is a base64-encoded string that needs to be signed by the client and submitted via `/transactions/submit`.
 - The `/view_patient/{token}` endpoint is valid for 1 hour from the time the URL is generated.
+- For `create-patient` and `update-patient`, use `multipart/form-data` instead of JSON due to file upload support. Tools like Postman or curl with `-F` flags are recommended for testing.
+- The `file` field in responses contains a Pinata CID (e.g., `QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco`) if a file was uploaded.
 
 ---
-
-This documentation covers all endpoints with detailed examples. Let me know if you need additional clarifications or adjustments!
-  
-  
-  medical-record-solana
-    ✔ Initializes the admin account (1656ms)
-    ✔ Adds a read authority and logs history (1089ms)
-    ✔ Adds a write authority and logs history (1083ms)
-    ✔ Fails to add authority as non-admin (1029ms)
-    ✔ Creates a patient record with encrypted data (970ms)
-    ✔ Updates a patient record with encrypted data (998ms)
-    ✔ Gets patient data (authorized) (998ms)
-    ✔ Fails to get patient data (unauthorized) (1141ms)
-    ✔ Removes a write authority and logs history (2124ms)
-  9 passing (11s)
-
