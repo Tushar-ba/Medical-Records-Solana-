@@ -29,14 +29,26 @@ async fn main() -> std::io::Result<()> {
         solana_sdk::signature::Keypair::from_bytes(&bytes).expect("Failed to create Keypair from bytes")
     };
 
-    let app_state = web::Data::new(app_state::AppState::new(
-        services::TransactionService::new(&rpc_url, admin_keypair, &program_id)
-            .expect("Failed to create TransactionService"),
-        models::JwtConfig {
-            secret: jwt_secret,
-            expires_in: jwt_expires_in,
-        },
-    ));
+    let solana_service = services::TransactionService::new(&rpc_url, admin_keypair, &program_id)
+        .expect("Failed to create TransactionService");
+    let jwt_config = models::JwtConfig {
+        secret: jwt_secret,
+        expires_in: jwt_expires_in,
+    };
+    let app_state = web::Data::new(app_state::AppState::new(solana_service, jwt_config));
+
+    // Rebuild patient_seed_map on startup
+    let patient_addresses = app_state
+        .solana_service
+        .get_patient_addresses(&app_state.solana_service.admin_pubkey.to_string(), &app_state)
+        .await
+        .expect("Failed to fetch patient addresses on startup");
+    for (pda, seed) in patient_addresses.patient_addresses {
+        if seed != "Unknown" {
+            app_state.patient_seed_map.insert(pda, seed);
+        }
+    }
+    log::info!("Rebuilt patient_seed_map with {} entries", app_state.patient_seed_map.len());
 
     log::info!("Server running on http://127.0.0.1:8080");
 

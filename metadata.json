@@ -1,0 +1,33 @@
+{
+    "name": "Bitcoin",
+    "symbol": "BTC", 
+    "description": "A comprehensive description of your token's purpose and utility",
+    "seller_fee_basis_points": 0, 
+    "image": "https://th.bing.com/th/id/OIP.mjxUP6_o8gr0CFfjYnPpfgHaHV?rs=1&pid=ImgDetMain", 
+    "external_url": "https://th.bing.com/th/id/OIP.mjxUP6_o8gr0CFfjYnPpfgHaHV?rs=1&pid=ImgDetMain", 
+    "attributes": [
+        {
+            "trait_type": "Category",
+            "value": "Utility Token"
+        },
+        {
+            "trait_type": "Blockchain",
+            "value": "Solana"
+        }
+    ],
+    "properties": {
+        "files": [
+            {
+                "uri": "https://your-domain.com/path/to/token-image.png",
+                "type": "image/png"
+            }
+        ],
+        "category": "image",
+        "creators": [
+            {
+                "address": "HtGXcunbPUU54wMa9ZiXdMXvv1b5ppT7DeFLJWdtH7Lr", 
+                "share": 100 
+            }
+        ]
+    }
+}

@@ -171,22 +171,14 @@ pub async fn prepare_create_patient(
         patient_data,
     };
 
+    // Pass AppState to prepare_create_patient
     let prepared_tx = if file_data.is_empty() {
-        data.solana_service.prepare_create_patient(&modified_req, None).await?
+        data.solana_service.prepare_create_patient(&modified_req, None, &data).await?
     } else {
-        data.solana_service.prepare_create_patient(&modified_req, Some(&file_data)).await?
+        data.solana_service.prepare_create_patient(&modified_req, Some(&file_data), &data).await?
     };
 
-    let parts: Vec<&str> = prepared_tx.encrypted_data_with_seed.split('|').collect();
-    if parts.len() >= 3 {
-        let patient_seed = parts[2].to_string();
-        let patient_pda = Pubkey::find_program_address(
-            &[b"patient", data.solana_service.admin_pubkey.as_ref(), Pubkey::from_str(&patient_seed)?.as_ref()],
-            &data.solana_service.program_id,
-        ).0.to_string();
-        data.patient_seed_map.insert(patient_pda, patient_seed);
-    }
-
+    // Remove the redundant patient_seed_map insertion here since it's now handled in prepare_create_patient
     Ok(HttpResponse::Ok().json(prepared_tx))
 }
 

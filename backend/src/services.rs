@@ -30,6 +30,8 @@ use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce, Key,
 };
+use dotenv::dotenv;
+use std::env;
 use uuid::Uuid;
 use solana_client::rpc_config::{RpcProgramAccountsConfig, RpcAccountInfoConfig};
 use reqwest::multipart;
@@ -44,12 +46,25 @@ pub struct TransactionService {
 
 impl TransactionService {
     pub fn new(rpc_url: &str, admin_keypair: Keypair, program_id: &str) -> Result<Self, AppError> {
+        dotenv().ok(); // Load .env file
+
         let client = RpcClient::new(rpc_url.to_string());
         let admin_pubkey = admin_keypair.pubkey();
         let program_id = Pubkey::from_str(program_id)
             .map_err(|e| AppError::InvalidProgramId(format!("Invalid program ID: {}", e)))?;
+
+        // Load the encryption key from .env
+        let key_base64 = env::var("ENCRYPTION_KEY")
+            .map_err(|_| AppError::InternalServerError("ENCRYPTION_KEY not found in .env".to_string()))?;
+        let key_bytes = base64::decode(&key_base64)
+            .map_err(|e| AppError::InternalServerError(format!("Failed to decode ENCRYPTION_KEY: {}", e)))?;
         
-        let encryption_key = rand::thread_rng().gen::<[u8; 32]>();
+        if key_bytes.len() != 32 {
+            return Err(AppError::InternalServerError("ENCRYPTION_KEY must be 32 bytes".to_string()));
+        }
+
+        let mut encryption_key = [0u8; 32];
+        encryption_key.copy_from_slice(&key_bytes);
 
         Ok(Self {
             client,
@@ -64,6 +79,7 @@ impl TransactionService {
         &self,
         req: &CreatePatientRequest,
         file_data: Option<&[u8]>,
+        app_state: &AppState, // Added AppState parameter
     ) -> Result<PreparedPatientTransaction, AppError> {
         log::info!("Preparing create_patient transaction for user: {}", req.user_pubkey);
         let user_pubkey = Pubkey::from_str(&req.user_pubkey)?;
@@ -141,6 +157,10 @@ impl TransactionService {
         transaction.message.recent_blockhash = recent_blockhash;
         let serialized_transaction = utils::serialize_transaction(&transaction)?;
         let encrypted_data_with_seed = format!("{}|{}", encrypted_string, patient_seed_pubkey.to_string());
+
+        // Store the PDA-seed mapping in patient_seed_map
+        app_state.patient_seed_map.insert(patient_pda.to_string(), patient_seed_pubkey.to_string());
+        log::info!("Stored patient seed for PDA: {} -> {}", patient_pda, patient_seed_pubkey);
 
         Ok(PreparedPatientTransaction {
             serialized_transaction,
